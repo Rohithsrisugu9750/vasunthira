@@ -16,7 +16,7 @@ app.get('/api/auth/login', (req, res) => {
 });
 
 // For any other request, serve index.html (SPA support)
-app.get('*', (req, res) => {
+app.get('(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
