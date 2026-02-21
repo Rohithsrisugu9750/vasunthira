@@ -6,7 +6,7 @@
 // Replace these with your actual keys from Supabase Settings > API
 const SUPABASE_URL = 'https://qyjzaxraxhvgfxljuhoc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_2ZyElXzSwG7000mr1ZLIkg_RLsgDH1_';
-let supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let attendanceDb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 // --- STATE MANAGEMENT ---
 let currentUser = null;
@@ -57,21 +57,21 @@ async function initApp() {
 }
 
 async function syncFromSupabase() {
-    if (!supabase) return;
+    if (!attendanceDb) return;
     try {
         // Sync Employees
-        const { data: emps } = await supabase.from('v_employees').select('*');
+        const { data: emps } = await attendanceDb.from('v_employees').select('*');
         if (emps) employees = emps;
 
         // Sync Config
-        const { data: cfg } = await supabase.from('v_config').select('*').eq('id', 1).single();
+        const { data: cfg } = await attendanceDb.from('v_config').select('*').eq('id', 1).single();
         if (cfg) config = cfg;
     } catch (e) { console.error("Sync Error", e); }
 }
 
 async function getRecords() {
-    if (!supabase) return JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
-    const { data } = await supabase.from('v_records').select('*').order('timestamp', { ascending: false });
+    if (!attendanceDb) return JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
+    const { data } = await attendanceDb.from('v_records').select('*').order('timestamp', { ascending: false });
     return data || [];
 }
 
@@ -109,8 +109,8 @@ async function handleLogin() {
 }
 async function saveEmployees() {
     localStorage.setItem('attendance_pro_employees', JSON.stringify(employees));
-    if (supabase) {
-        await supabase.from('v_employees').upsert(employees);
+    if (attendanceDb) {
+        await attendanceDb.from('v_employees').upsert(employees);
     }
 }
 
@@ -343,8 +343,8 @@ async function submitAttendance() {
         deviceId: currentDeviceId
     };
 
-    if (supabase) {
-        await supabase.from('v_records').insert([record]);
+    if (attendanceDb) {
+        await attendanceDb.from('v_records').insert([record]);
     } else {
         records.unshift(record);
         localStorage.setItem('attendance_pro_records', JSON.stringify(records));
@@ -572,8 +572,8 @@ async function saveConfig() {
     config.salaryOT = parseInt(document.getElementById('salary-rate-ot').value);
 
     localStorage.setItem('attendance_pro_config', JSON.stringify(config));
-    if (supabase) {
-        await supabase.from('v_config').upsert([{ id: 1, ...config }]);
+    if (attendanceDb) {
+        await attendanceDb.from('v_config').upsert([{ id: 1, ...config }]);
     }
     alert('Settings Updated Successfully.');
 }
@@ -620,8 +620,8 @@ async function deleteEmployee(id) {
     if (!confirm('Are you sure?')) return;
     employees = employees.filter(e => e.id !== id);
     await saveEmployees();
-    if (supabase) {
-        await supabase.from('v_employees').delete().eq('id', id);
+    if (attendanceDb) {
+        await attendanceDb.from('v_employees').delete().eq('id', id);
     }
     renderEmployeeManagement();
 }
