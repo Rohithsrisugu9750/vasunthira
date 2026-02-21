@@ -6,7 +6,7 @@
 // Replace these with your actual keys from Supabase Settings > API
 const SUPABASE_URL = 'https://qyjzaxraxhvgfxljuhoc.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_2ZyElXzSwG7000mr1ZLIkg_RLsgDH1_';
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 // --- STATE MANAGEMENT ---
 let currentUser = null;
