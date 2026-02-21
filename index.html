@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vasundharaa Attendance Pro</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="description" content="Commercial GPS & Camera Attendance System">
+    <meta name="theme-color" content="#FF8C00">
+    <!-- Supabase Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Excel Export Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <main id="app">
+        <!-- 1. Login Screen (Desktop Split) -->
+        <section id="login-screen" class="fade-in w-full">
+            <div class="login-container">
+                <div class="login-side-art">
+                    <img src="logo.png" alt="Vasundharaa Logo" class="login-logo-img"
+                        onerror="this.src='https://cdn-icons-png.flaticon.com/512/3144/3144456.png'">
+                    <p style="font-size: 1.2rem; color: rgba(255,255,255,0.8); margin-top: 20px;">Advanced GPS & Face
+                        Verification
+                        Attendance for Pazhamudhir Nilayam.</p>
+                </div>
+                <div class="login-form-side">
+                    <div class="card">
+                        <div class="text-center mb-4">
+                            <h2 class="mb-2">Portal Access</h2>
+                            <p>Verify your credentials to continue</p>
+                        </div>
+                        <div class="form-group">
+                            <label>Employee / Admin ID</label>
+                            <input type="text" id="login-id" placeholder="Enter your ID">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="login-pass" placeholder="••••••••">
+                        </div>
+                        <button class="btn btn-primary" id="btn-login">
+                            <span>Authenticate</span>
+                            <i class="fas fa-shield-halved"></i>
+                        </button>
+                        <p class="mt-4 text-center" style="font-size: 0.8rem; color: var(--text-dim);">
+                            Access restricted to authorized devices only.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Container for Dashboard Sections -->
+        <div id="dashboard-content" class="dashboard-content-area hidden w-full">
+            <!-- 2. Employee Main View -->
+            <section id="emp-main" class="hidden">
+                <header class="flex justify-between items-center mb-6 px-2">
+                    <div class="flex-col">
+                        <p style="font-size: 0.8rem;">Shift Overview</p>
+                        <h2 id="emp-name-display">Alex Rivera</h2>
+                    </div>
+                    <div class="status-pill status-warning" id="gps-accuracy-pill">
+                        <i class="fas fa-satellite-dish"></i>
+                        <span id="gps-accuracy-text">GPS: --m</span>
+                    </div>
+                </header>
+
+                <div id="section-emp-home" class="dashboard-section active slide-up">
+                    <div class="card">
+                        <div class="flex-col items-center py-6">
+                            <p class="mb-2">Session Timer</p>
+                            <div id="attendance-status-badge" class="status-pill status-invalid"
+                                style="transform: scale(1.2);">
+                                <i class="fas fa-clock"></i>
+                                <span>Off Duty</span>
+                            </div>
+                            <div id="live-timer" class="mt-8"
+                                style="font-size: 3.5rem; font-weight: 800; color: white;">00:00:00</div>
+                            <p id="timer-label" class="hidden text-primary mt-2">Active Work Session</p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Compliance Check</h3>
+                        <div class="flex justify-between items-center mt-4">
+                            <div class="flex items-center gap-3">
+                                <i class="fas fa-map-location-dot text-primary" style="font-size: 1.5rem;"></i>
+                                <div class="flex-col">
+                                    <span id="geofence-status" style="font-weight: 600;">Detecting...</span>
+                                    <span style="font-size: 0.7rem; color: var(--text-dim);">Proximity to Juice
+                                        Shop</span>
+                                </div>
+                            </div>
+                            <span id="distance-value" style="font-size: 1.2rem; font-weight: 800;">-- m</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary full-width-element" id="btn-toggle-attendance"
+                        style="padding: 24px;">
+                        <i class="fas fa-camera"></i>
+                        <span id="attendance-btn-text" style="font-size: 1.2rem;">Start Verification</span>
+                    </button>
+                </div>
+
+                <div id="section-emp-history" class="dashboard-section slide-up">
+                    <h3 class="mb-4 full-width-element">Attendance History</h3>
+                    <div id="employee-history-list" class="full-width-element"></div>
+                </div>
+            </section>
+
+            <!-- 4. Admin Main View -->
+            <section id="admin-main" class="hidden">
+                <header class="flex justify-between items-center mb-6 px-2">
+                    <div class="flex-col">
+                        <p style="font-size: 0.8rem;">System Status</p>
+                        <h2 id="admin-name-display">Manager Console</h2>
+                    </div>
+                    <div class="status-pill status-valid" style="background: rgba(16, 185, 129, 0.2);">
+                        <i class="fas fa-circle-check"></i>
+                        <span>System Secured</span>
+                    </div>
+                </header>
+
+                <div id="section-admin-home" class="dashboard-section active slide-up">
+                    <div class="stats-grid">
+                        <div class="stat-item card">
+                            <span class="stat-value text-primary" id="stats-present">0</span>
+                            <span class="stat-label">In Shop Today</span>
+                        </div>
+                        <div class="stat-item card">
+                            <span class="stat-value text-warning" id="stats-late">0</span>
+                            <span class="stat-label">Late Entries</span>
+                        </div>
+                        <div class="stat-item card">
+                            <span class="stat-value text-error" id="stats-absent">0</span>
+                            <span class="stat-label">Missing Staff</span>
+                        </div>
+                        <div class="stat-item card">
+                            <span class="stat-value text-success" id="stats-overtime">0h</span>
+                            <span class="stat-label">Approved OT</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3>Attendance Analytics</h3>
+                            <button class="status-pill status-valid" style="border: none; cursor: default;">Weekly
+                                Trend</button>
+                        </div>
+                        <div class="chart-placeholder" style="height: 200px;">
+                            <svg class="chart-line" viewBox="0 0 100 50">
+                                <path d="M0 45 Q 20 10, 40 35 T 60 15 T 80 40 T 100 20"
+                                    style="stroke-width: 3; fill: rgba(255, 140, 0, 0.1);" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="mb-4 px-2 full-width-element">Live Staff Feed</h3>
+                    <div id="admin-live-table" class="full-width-element"></div>
+                </div>
+
+                <!-- Admin Team Section -->
+                <div id="section-admin-team" class="dashboard-section slide-up">
+                    <div class="card">
+                        <h3 class="mb-6">Onboard Staff</h3>
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" id="new-emp-name" placeholder="Enter name">
+                        </div>
+                        <div class="form-group flex gap-4">
+                            <div class="flex-1">
+                                <label>Unique ID</label>
+                                <input type="text" id="new-emp-id" placeholder="EMP001">
+                            </div>
+                            <div class="flex-1">
+                                <label>Password</label>
+                                <input type="password" id="new-emp-pass" placeholder="Secure pass">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Profile Picture</label>
+                            <input type="file" id="new-emp-photo" accept="image/*" class="file-input-custom">
+                        </div>
+                        <button class="btn btn-secondary w-full" id="btn-add-employee" style="margin-top: 10px;">
+                            <i class="fas fa-plus-circle"></i>
+                            <span>Register Employee</span>
+                        </button>
+                    </div>
+
+                    <h3 class="mb-4 px-2 full-width-element">Active Directory</h3>
+                    <div id="admin-employee-list" class="full-width-element"></div>
+                </div>
+
+                <!-- Admin Geofence Section -->
+                <div id="section-admin-geofence" class="dashboard-section slide-up">
+                    <div class="card">
+                        <h3 class="mb-6">Geofence Configuration</h3>
+                        <div class="form-group">
+                            <label>Shop Location Coordinates</label>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <label style="font-size: 0.7rem;">LATITUDE</label>
+                                    <input type="text" id="shop-lat" placeholder="0.0000">
+                                </div>
+                                <div class="flex-1">
+                                    <label style="font-size: 0.7rem;">LONGITUDE</label>
+                                    <input type="text" id="shop-lng" placeholder="0.0000">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Proximity Radius (Meters)</label>
+                            <input type="number" id="shop-radius" value="50">
+                        </div>
+                        <div class="flex gap-4">
+                            <button class="btn btn-secondary" id="btn-set-current-loc" style="flex: 1;">
+                                <i class="fas fa-location-crosshairs"></i>
+                                <span>Capture GPS</span>
+                            </button>
+                            <button class="btn btn-primary" id="btn-save-config" style="flex: 2;">
+                                <span>Save Settings</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Infrastructure Rules</h3>
+                        <div class="mt-6 flex flex-col gap-6">
+                            <div class="flex justify-between items-center">
+                                <div class="flex-col">
+                                    <span style="font-weight: 600;">Device ID Binding</span>
+                                    <p style="font-size: 0.7rem;">Restrict login to registered hardware</p>
+                                </div>
+                                <i class="fas fa-toggle-on text-primary" style="font-size: 1.5rem;"></i>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <div class="flex-col">
+                                    <span style="font-weight: 600;">Biometric Validation</span>
+                                    <p style="font-size: 0.7rem;">Face recognition before check-in</p>
+                                </div>
+                                <i class="fas fa-toggle-on text-primary" style="font-size: 1.5rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Salary Section -->
+                <div id="section-admin-salary" class="dashboard-section slide-up">
+                    <div class="card">
+                        <h3 class="mb-6">Payroll Management</h3>
+                        <div class="stats-grid" style="margin-bottom: 30px;">
+                            <div class="form-group flex-1">
+                                <label>Daily Wage Rule</label>
+                                <input type="number" id="salary-rate-day" value="500">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label>OT Hourly Rate</label>
+                                <input type="number" id="salary-rate-ot" value="100">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-full" id="btn-export-reports">
+                            <i class="fas fa-file-excel"></i>
+                            <span>Download Monthly Ledger</span>
+                        </button>
+                    </div>
+
+                    <div id="admin-salary-list" class="full-width-element"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 3. Verification Screen -->
+        <section id="verification-screen" class="hidden fade-in w-full">
+            <div class="flex-col items-center justify-center min-vh-100" style="padding: 20px;">
+                <div class="card" style="max-width: 500px; margin: 0 auto;">
+                    <div class="flex-col items-center text-center mb-6">
+                        <h2 class="mb-2">Identity Check</h2>
+                        <div class="status-pill status-valid">
+                            <i class="fas fa-lock"></i> <span>Secure Session</span>
+                        </div>
+                    </div>
+
+                    <div class="media-container" style="border: 4px solid var(--primary); border-radius: 20px;">
+                        <video id="video" autoplay playsinline></video>
+                        <canvas id="canvas" style="display:none;"></canvas>
+                        <img id="captured-image" alt="Verification selfie">
+                    </div>
+
+                    <div id="verification-controls" class="mt-6">
+                        <button class="btn btn-primary" id="btn-capture">
+                            <i class="fas fa-shutter-speed"></i>
+                            <span>Take Photo</span>
+                        </button>
+                        <button class="btn btn-secondary mt-4" id="btn-cancel-verification">
+                            <span>Abort</span>
+                        </button>
+                    </div>
+
+                    <div id="confirm-controls" class="hidden mt-6">
+                        <button class="btn btn-primary" id="btn-confirm-attendance">
+                            <i class="fas fa-check-double"></i>
+                            <span>Confirm & Log</span>
+                        </button>
+                        <button class="btn btn-secondary mt-4" id="btn-retake">
+                            <span>Retake Photo</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dynamic Bottom Nav / Sidebar -->
+        <nav id="app-nav" class="nav-bottom hidden">
+            <div class="nav-brand px-4 mb-6 hidden-mobile">
+                <img src="logo.png" alt="Logo" style="width: 100%; border-radius: 12px;"
+                    onerror="this.src='https://cdn-icons-png.flaticon.com/512/3144/3144456.png'">
+            </div>
+            <div class="nav-item active" data-section="home" id="nav-home">
+                <i class="fas fa-rocket"></i>
+                <span>Dashboard</span>
+            </div>
+            <div class="nav-item" data-section="history" id="nav-history">
+                <i class="fas fa-calendar-check"></i>
+                <span>Attendance</span>
+            </div>
+            <div class="nav-item" data-section="reports" id="nav-reports">
+                <i class="fas fa-sack-dollar"></i>
+                <span>Payroll</span>
+            </div>
+            <div class="nav-item" data-section="settings" id="nav-settings">
+                <i class="fas fa-gears"></i>
+                <span>Admin</span>
+            </div>
+            <div class="nav-item mt-auto" id="nav-logout"
+                style="border-top: 1px solid rgba(255,255,255,0.1); width: 100%;">
+                <i class="fas fa-power-off text-error"></i>
+                <span>Sign Out</span>
+            </div>
+        </nav>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
