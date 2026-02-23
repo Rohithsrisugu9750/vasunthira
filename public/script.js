@@ -107,7 +107,30 @@ async function initApp() {
     setupNav();
     setupEventListeners();
     updateLanguage();
-    showScreen('login-screen');
+    renderQuickLogin();
+
+    // Session Persistence: Check if user was previously logged in
+    const savedUser = localStorage.getItem('attendance_pro_session');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        console.log("Restoring session for:", currentUser.name);
+        if (currentUser.role === 'admin') {
+            document.getElementById('admin-name-display').innerText = currentUser.name;
+            showScreen('admin-main');
+            switchSection('home');
+        } else {
+            document.getElementById('emp-name-display').innerText = currentUser.name;
+            showScreen('emp-main');
+            switchSection('home');
+            startGPSMonitoring();
+            updateShiftStatus();
+            const shopDisplay = document.getElementById('display-shop-name');
+            if (shopDisplay) shopDisplay.innerText = config.shopName || 'Shop';
+            updateOwnerMessageUI();
+        }
+    } else {
+        showScreen('login-screen');
+    }
 
     // Handle Online/Offline Status
     window.addEventListener('online', () => {
@@ -123,9 +146,33 @@ async function initApp() {
     console.log("Connecting to Supabase...");
     syncFromSupabase().then(() => {
         console.log("Supabase Synced Successfully!");
+        renderQuickLogin(); // Re-render if new employees were synced
         syncUnsyncedRecords();
     }).catch(err => {
         console.error("Database Connection Failed. Working Offline.");
+    });
+}
+
+function renderQuickLogin() {
+    const list = document.getElementById('quick-login-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    // Only show regular employees in Quick Access
+    const emps = employees.filter(e => e.role === 'employee');
+
+    emps.forEach(emp => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-secondary';
+        btn.style.padding = '8px 15px';
+        btn.style.fontSize = '0.8rem';
+        btn.innerHTML = `<i class="fas fa-user"></i> ${emp.name}`;
+        btn.onclick = () => {
+            document.getElementById('login-id').value = emp.id;
+            document.getElementById('login-pass').value = emp.pass; // Auto-fill password for "No Restriction"
+            handleLogin();
+        };
+        list.appendChild(btn);
     });
 }
 
@@ -217,6 +264,9 @@ async function handleLogin() {
     }
 
     currentUser = user;
+    // Persist session
+    localStorage.setItem('attendance_pro_session', JSON.stringify(currentUser));
+
     if (user.role === 'admin') {
         document.getElementById('admin-name-display').innerText = user.name;
         showScreen('admin-main');
@@ -248,6 +298,7 @@ function updateOwnerMessageUI() {
 
 async function saveEmployees() {
     localStorage.setItem('attendance_pro_employees', JSON.stringify(employees));
+    renderQuickLogin(); // Update Quick Access list
     if (attendanceDb) {
         await attendanceDb.from('v_employees').upsert(employees);
     }
@@ -411,6 +462,7 @@ function showScreen(screenId) {
 // --- AUTH LOGIC ---
 function logout() {
     currentUser = null;
+    localStorage.removeItem('attendance_pro_session');
     document.getElementById('nav-reports').classList.remove('hidden'); // Reset visibility
     stopGPSMonitoring();
     stopShiftTimer();
