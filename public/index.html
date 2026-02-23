@@ -91,11 +91,6 @@
                                 <span>Authenticate</span>
                                 <i class="fas fa-shield-halved"></i>
                             </button>
-                            <button class="btn btn-secondary mt-4 w-full" id="btn-admin-direct"
-                                style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-                                <i class="fas fa-user-gear"></i>
-                                <span>Manager Direct Access</span>
-                            </button>
                         </div>
 
                         <div id="admin-choices" class="hidden mt-4 slide-up">
@@ -149,6 +144,19 @@
                 </header>
 
                 <div id="section-emp-home" class="dashboard-section active slide-up">
+                    <!-- Owner's Notification Banner -->
+                    <div id="owner-notification-banner" class="card mb-4 hidden"
+                        style="background: linear-gradient(135deg, var(--primary), #cc6a00); border: none;">
+                        <div class="flex items-center gap-4">
+                            <i class="fas fa-bullhorn" style="font-size: 1.5rem;"></i>
+                            <div class="flex-col">
+                                <span style="font-size: 0.7rem; text-transform: uppercase; opacity: 0.8;">Message from
+                                    Owner</span>
+                                <p id="display-owner-message" style="font-weight: 600; line-height: 1.2;">Checking in...
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="flex-col items-center py-6">
                             <p class="mb-2">Session Timer</p>
@@ -359,6 +367,12 @@
                         <div class="form-group">
                             <label>Proximity Radius (Meters)</label>
                             <input type="number" id="shop-radius" value="50">
+                        </div>
+                        <div class="form-group mt-6">
+                            <label>Owner's Broadcast Message</label>
+                            <textarea id="owner-msg-input"
+                                placeholder="Enter message for workers (e.g. Please be on time today!)"
+                                style="width: 100%; min-height: 80px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; color: white;"></textarea>
                         </div>
                         <div class="flex gap-4">
                             <button class="btn btn-secondary" id="btn-set-current-loc" style="flex: 1;">

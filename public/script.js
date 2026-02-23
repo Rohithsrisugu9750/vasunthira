@@ -22,6 +22,7 @@ let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
     radius: 30,   // Strict 30m requirement
     shopName: 'Juice Shop',
     shopPincode: '',
+    ownerMessage: 'Welcome! Please stay within 30m of the shop for automatic attendance.',
     salaryDay: 500,
     salaryOT: 100,
     deviceBinding: true
@@ -178,9 +179,21 @@ async function handleLogin() {
         startGPSMonitoring();
         updateShiftStatus();
 
-        // Set dynamic shop name in UI
+        // Set dynamic shop name and owner message in UI
         const shopDisplay = document.getElementById('display-shop-name');
         if (shopDisplay) shopDisplay.innerText = config.shopName || 'Shop';
+        updateOwnerMessageUI();
+    }
+}
+
+function updateOwnerMessageUI() {
+    const banner = document.getElementById('owner-notification-banner');
+    const display = document.getElementById('display-owner-message');
+    if (config.ownerMessage && config.ownerMessage.trim() !== '') {
+        if (display) display.innerText = config.ownerMessage;
+        if (banner) banner.classList.remove('hidden');
+    } else {
+        if (banner) banner.classList.add('hidden');
     }
 }
 
@@ -307,6 +320,7 @@ function switchSection(sectionName) {
             document.getElementById('shop-lat').value = config.lat;
             document.getElementById('shop-lng').value = config.lng;
             document.getElementById('shop-radius').value = config.radius;
+            document.getElementById('owner-msg-input').value = config.ownerMessage || '';
             document.getElementById('salary-rate-day').value = config.salaryDay;
             document.getElementById('salary-rate-ot').value = config.salaryOT;
             updateToggleUI();
@@ -448,6 +462,13 @@ async function handleAutoCheckin(distance) {
     if (!lastRecord || lastRecord.type === 'OUT') {
         console.log(`Auto-Checkin Triggered: Arrived at Shop (${Math.round(distance)}m)`);
         await autoSubmitAttendance('IN', 'Auto-Checkin (Arrived)');
+
+        // Highlight Owner Message as Confirmation
+        const msgEl = document.getElementById('display-owner-message');
+        const banner = document.getElementById('owner-notification-banner');
+        if (msgEl) msgEl.innerText = "Confirmed: Auto Check-In Successful! Owner notified.";
+        if (banner) banner.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+
         alert(`Auto-Checkin Success: You have been clocked in automatically upon arrival at the shop.`);
     }
 }
@@ -892,6 +913,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 async function saveConfig(showMsg = true) {
     config.shopName = document.getElementById('shop-name').value || 'Juice Shop';
     config.shopPincode = document.getElementById('shop-pincode').value || '';
+    config.ownerMessage = document.getElementById('owner-msg-input').value || '';
     config.lat = parseFloat(document.getElementById('shop-lat').value);
     config.lng = parseFloat(document.getElementById('shop-lng').value);
     config.radius = parseInt(document.getElementById('shop-radius').value);
