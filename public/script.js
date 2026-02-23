@@ -19,7 +19,7 @@ let currentDeviceId = null;
 let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
     lat: 13.0827, // Default Chennai lat
     lng: 80.2707, // Default Chennai lng
-    radius: 50,
+    radius: 30,   // Strict 30m requirement
     salaryDay: 500,
     salaryOT: 100,
     deviceBinding: true
@@ -98,11 +98,17 @@ async function syncFromSupabase() {
     try {
         // Sync Employees
         const { data: emps } = await attendanceDb.from('v_employees').select('*');
-        if (emps) employees = emps;
+        if (emps) {
+            employees = emps;
+            localStorage.setItem('attendance_pro_employees', JSON.stringify(employees));
+        }
 
         // Sync Config
         const { data: cfg } = await attendanceDb.from('v_config').select('*').eq('id', 1).single();
-        if (cfg) config = cfg;
+        if (cfg) {
+            config = cfg;
+            localStorage.setItem('attendance_pro_config', JSON.stringify(config));
+        }
     } catch (e) { console.error("Sync Error", e); }
 }
 
@@ -326,6 +332,7 @@ function stopGPSMonitoring() {
 function updatePosition() {
     if (!navigator.geolocation) return;
 
+    // Use High Accuracy for strict 30m requirement
     navigator.geolocation.getCurrentPosition(pos => {
         const { latitude, longitude, accuracy } = pos.coords;
         userCoords = { lat: latitude, lng: longitude };
@@ -334,8 +341,16 @@ function updatePosition() {
         // Update UI
         const accText = document.getElementById('gps-accuracy-text');
         accText.innerText = `GPS: ${gpsAccuracy}m`;
-        document.getElementById('gps-accuracy-pill').className =
-            accuracy < 20 ? 'status-pill status-valid' : 'status-pill status-warning';
+
+        // Stricter UI feedback for 30m
+        const accPill = document.getElementById('gps-accuracy-pill');
+        if (accuracy < 15) {
+            accPill.className = 'status-pill status-valid';
+        } else if (accuracy < 30) {
+            accPill.className = 'status-pill status-warning';
+        } else {
+            accPill.className = 'status-pill status-invalid';
+        }
 
         const dist = calculateDistance(latitude, longitude, config.lat, config.lng);
         const distEl = document.getElementById('distance-value');
@@ -343,11 +358,11 @@ function updatePosition() {
 
         if (distEl) distEl.innerText = `${Math.round(dist)}m`;
         if (statusEl) {
-            if (dist <= config.radius) {
-                statusEl.innerText = 'Inside Radius';
+            if (dist <= 30) { // Force 30m strictness
+                statusEl.innerText = 'Inside Shop (Secure)';
                 statusEl.className = 'text-success';
             } else {
-                statusEl.innerText = 'Outside Range';
+                statusEl.innerText = 'Outside (Blocked)';
                 statusEl.className = 'text-error';
 
                 // AUTO CHECK OUT LOGIC
@@ -356,7 +371,7 @@ function updatePosition() {
         }
     }, err => {
         console.warn('GPS Error', err);
-    }, { enableHighAccuracy: true });
+    }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
 }
 
 async function handleAutoCheckout(distance) {
@@ -418,13 +433,14 @@ async function startVerificationFlow() {
 
     const dist = calculateDistance(userCoords.lat, userCoords.lng, config.lat, config.lng);
 
-    if (dist > config.radius) {
-        return alert(`Access Blocked. You are ${Math.round(dist)}m away from the shop.`);
+    // Enforce strict 30m limit
+    if (dist > 30) {
+        return alert(`ERROR: Out of Range. You are ${Math.round(dist)}m away. You must be within 30m of the shop.`);
     }
 
-    // Relaxed accuracy check: Increase limit for indoor use (500m)
-    if (gpsAccuracy > 500) {
-        return alert('GPS signal is too weak (Accuracy: ' + gpsAccuracy + 'm). Please move closer to a window.');
+    // Strict accuracy check for 30m geofencing
+    if (gpsAccuracy > 100) {
+        return alert('GPS signal too inaccurate (' + gpsAccuracy + 'm). Please move around or ensure you are outdoors/near a window to get a better lock.');
     }
 
     showScreen('verification-screen');
@@ -635,26 +651,60 @@ function renderEmployeeManagement() {
     employees.forEach(e => {
         if (e.role === 'admin') return;
         const item = document.createElement('div');
-        item.className = 'list-item';
+        item.className = 'list-item-container card';
+        item.style.marginBottom = '15px';
+        item.style.padding = '15px';
+
         const profileImg = e.image || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(e.name) + '&background=random';
+
         item.innerHTML = `
-            <img src="${profileImg}" class="list-img">
-            <div class="flex-col" style="flex:1">
-                <div class="list-title">${e.name}</div>
-                <div class="list-subtitle">ID: ${e.id} | Device: ${e.deviceId ? 'Linked' : 'Pending'}</div>
+            <div class="list-item" style="border:none; padding:0; background:none;">
+                <img src="${profileImg}" class="list-img">
+                <div class="flex-col" style="flex:1">
+                    <div class="list-title">${e.name}</div>
+                    <div class="list-subtitle">ID: ${e.id} | Device: ${e.deviceId ? 'Linked' : 'Pending'}</div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleWorkerDetails('${e.id}')" class="btn-icon" title="View Details">
+                        <i class="fas fa-eye text-primary"></i>
+                    </button>
+                    ${e.deviceId ? `
+                    <button onclick="resetDevice('${e.id}')" title="Reset Device" class="btn-icon" style="color:var(--warning);">
+                        <i class="fas fa-unlink"></i>
+                    </button>` : ''}
+                    <button onclick="deleteEmployee('${e.id}')" title="Delete" class="btn-icon" style="color:var(--error);">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
             </div>
-            <div class="flex gap-2">
-                ${e.deviceId ? `
-                <button onclick="resetDevice('${e.id}')" title="Reset Device" style="background:none; border:none; color:var(--warning);">
-                    <i class="fas fa-unlink"></i>
-                </button>` : ''}
-                <button onclick="deleteEmployee('${e.id}')" title="Delete" style="background:none; border:none; color:var(--error);">
-                    <i class="fas fa-trash"></i>
-                </button>
+            <div id="details-${e.id}" class="hidden mt-4 pt-4" style="border-top:1px solid rgba(255,255,255,0.1); font-size:0.85rem;">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p style="color:var(--text-dim); font-size:0.7rem; text-transform:uppercase;">Phone Number</p>
+                        <p>${e.phone || 'Not provided'}</p>
+                    </div>
+                    <div>
+                        <p style="color:var(--text-dim); font-size:0.7rem; text-transform:uppercase;">Identity Proof</p>
+                        <p>${e.idProof || 'Not provided'}</p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <p style="color:var(--text-dim); font-size:0.7rem; text-transform:uppercase;">Home Address</p>
+                    <p>${e.address || 'Not provided'}</p>
+                </div>
+                <div class="mt-3">
+                    <p style="color:var(--text-dim); font-size:0.7rem; text-transform:uppercase;">Password (Security)</p>
+                    <p style="font-family:monospace; background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:4px; display:inline-block;">${e.pass}</p>
+                </div>
             </div>
         `;
         listEl.appendChild(item);
     });
+}
+
+function toggleWorkerDetails(id) {
+    const el = document.getElementById(`details-${id}`);
+    el.classList.toggle('hidden');
 }
 
 async function renderSalaryModule() {
@@ -766,9 +816,12 @@ async function addEmployee() {
     const name = document.getElementById('new-emp-name').value;
     const id = document.getElementById('new-emp-id').value;
     const pass = document.getElementById('new-emp-pass').value;
+    const phone = document.getElementById('new-emp-phone').value;
+    const idProof = document.getElementById('new-emp-id-proof').value;
+    const address = document.getElementById('new-emp-address').value;
     const photoInput = document.getElementById('new-emp-photo');
 
-    if (!name || !id || !pass) return alert('Fill all fields.');
+    if (!name || !id || !pass) return alert('Fill all mandatory fields (Name, ID, Pass).');
     if (employees.find(e => e.id === id)) return alert('ID already exists.');
 
     let imageData = null;
@@ -780,7 +833,18 @@ async function addEmployee() {
         });
     }
 
-    employees.push({ id, name, pass, role: 'employee', deviceId: null, image: imageData });
+    employees.push({
+        id,
+        name,
+        pass,
+        phone,
+        idProof,
+        address,
+        role: 'employee',
+        deviceId: null,
+        image: imageData
+    });
+
     saveEmployees();
     renderEmployeeManagement();
 
@@ -788,9 +852,12 @@ async function addEmployee() {
     document.getElementById('new-emp-name').value = '';
     document.getElementById('new-emp-id').value = '';
     document.getElementById('new-emp-pass').value = '';
+    document.getElementById('new-emp-phone').value = '';
+    document.getElementById('new-emp-id-proof').value = '';
+    document.getElementById('new-emp-address').value = '';
     document.getElementById('new-emp-photo').value = '';
 
-    alert('Employee Registered.');
+    alert('Employee Registered with Details.');
 }
 
 async function deleteEmployee(id) {
