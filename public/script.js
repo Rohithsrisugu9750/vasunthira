@@ -21,7 +21,8 @@ let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
     lng: 80.2707, // Default Chennai lng
     radius: 50,
     salaryDay: 500,
-    salaryOT: 100
+    salaryOT: 100,
+    deviceBinding: true
 };
 
 let employees = JSON.parse(localStorage.getItem('attendance_pro_employees')) || [
@@ -84,7 +85,7 @@ async function handleLogin() {
     if (!user) return alert('Invalid Credentials.');
 
     // Device Binding Check
-    if (user.deviceId && user.deviceId !== currentDeviceId) {
+    if (config.deviceBinding !== false && user.deviceId && user.deviceId !== currentDeviceId) {
         return alert('Security Error: This account is bound to another device. Contact Admin.');
     }
 
@@ -142,6 +143,13 @@ function setupEventListeners() {
 
     // Logout
     document.getElementById('nav-logout').addEventListener('click', logout);
+
+    // Settings Toggles
+    document.getElementById('toggle-device-binding').addEventListener('click', () => {
+        config.deviceBinding = !config.deviceBinding;
+        saveConfig(false);
+        updateToggleUI();
+    });
 }
 
 // --- NAVIGATION & UI ---
@@ -183,7 +191,16 @@ function switchSection(sectionName) {
             document.getElementById('section-admin-salary').classList.add('active');
             renderSalaryModule();
         }
-        if (sectionName === 'settings') document.getElementById('section-admin-geofence').classList.add('active');
+        if (sectionName === 'settings') {
+            document.getElementById('section-admin-geofence').classList.add('active');
+            // Update inputs with current config
+            document.getElementById('shop-lat').value = config.lat;
+            document.getElementById('shop-lng').value = config.lng;
+            document.getElementById('shop-radius').value = config.radius;
+            document.getElementById('salary-rate-day').value = config.salaryDay;
+            document.getElementById('salary-rate-ot').value = config.salaryOT;
+            updateToggleUI();
+        }
     }
 }
 
@@ -481,9 +498,15 @@ function renderEmployeeManagement() {
                 <div class="list-title">${e.name}</div>
                 <div class="list-subtitle">ID: ${e.id} | Device: ${e.deviceId ? 'Linked' : 'Pending'}</div>
             </div>
-            <button onclick="deleteEmployee('${e.id}')" style="background:none; border:none; color:var(--error);">
-                <i class="fas fa-trash"></i>
-            </button>
+            <div class="flex gap-2">
+                ${e.deviceId ? `
+                <button onclick="resetDevice('${e.id}')" title="Reset Device" style="background:none; border:none; color:var(--warning);">
+                    <i class="fas fa-unlink"></i>
+                </button>` : ''}
+                <button onclick="deleteEmployee('${e.id}')" title="Delete" style="background:none; border:none; color:var(--error);">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         `;
         listEl.appendChild(item);
     });
@@ -564,7 +587,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 
 
-async function saveConfig() {
+async function saveConfig(showMsg = true) {
     config.lat = parseFloat(document.getElementById('shop-lat').value);
     config.lng = parseFloat(document.getElementById('shop-lng').value);
     config.radius = parseInt(document.getElementById('shop-radius').value);
@@ -575,7 +598,16 @@ async function saveConfig() {
     if (attendanceDb) {
         await attendanceDb.from('v_config').upsert([{ id: 1, ...config }]);
     }
-    alert('Settings Updated Successfully.');
+    if (showMsg) alert('Settings Updated Successfully.');
+}
+
+function updateToggleUI() {
+    const dbToggle = document.getElementById('toggle-device-binding');
+    if (config.deviceBinding) {
+        dbToggle.className = 'fas fa-toggle-on text-primary';
+    } else {
+        dbToggle.className = 'fas fa-toggle-off text-dim';
+    }
 }
 
 function setCurrentGPS() {
@@ -624,6 +656,17 @@ async function deleteEmployee(id) {
         await attendanceDb.from('v_employees').delete().eq('id', id);
     }
     renderEmployeeManagement();
+}
+
+async function resetDevice(id) {
+    if (!confirm('Unlink device for this employee? They will be able to login from a new device.')) return;
+    const emp = employees.find(e => e.id === id);
+    if (emp) {
+        emp.deviceId = null;
+        await saveEmployees();
+        alert('Device Unlinked Successfully.');
+        renderEmployeeManagement();
+    }
 }
 
 function exportExcel() {
