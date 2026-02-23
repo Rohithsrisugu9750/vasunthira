@@ -114,6 +114,14 @@ async function syncFromSupabase() {
     } catch (e) { console.error("Sync Error", e); }
 }
 
+function getTodayStr() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
 async function getRecords() {
     // Always get local first
     const local = JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
@@ -123,9 +131,6 @@ async function getRecords() {
     try {
         const { data } = await attendanceDb.from('v_records').select('*').order('timestamp', { ascending: false });
         if (data) {
-            // Merge logic: If DB has newer or different data, we might want to sync, 
-            // but for now, we'll return DB data as the source of truth when online
-            // and update local storage to keep it in sync
             localStorage.setItem('attendance_pro_records', JSON.stringify(data));
             return data;
         }
@@ -383,7 +388,10 @@ function updatePosition() {
         const distEl = document.getElementById('distance-value');
         const statusEl = document.getElementById('geofence-status');
 
-        if (distEl) distEl.innerText = `${Math.round(dist)}m`;
+        if (distEl) {
+            if (isNaN(dist)) distEl.innerText = '-- m';
+            else distEl.innerText = `${Math.round(dist)}m`;
+        }
 
         // Google Maps Link for Current Location
         const gmapBtn = document.getElementById('btn-open-gmaps');
@@ -394,20 +402,18 @@ function updatePosition() {
         }
 
         if (statusEl) {
-            if (dist <= 30) {
+            if (isNaN(dist)) {
+                statusEl.innerText = 'GPS Error';
+                statusEl.className = 'text-error';
+            } else if (dist <= 30) {
                 statusEl.innerText = 'Inside Shop (Secure)';
                 statusEl.className = 'text-success';
-
-                // AUTO CHECK IN LOGIC (Arrival)
                 handleAutoCheckin(dist);
-            } else if (dist > 40) { // 10m Buffer zone to prevent jitter
+            } else if (dist > 40) {
                 statusEl.innerText = 'Outside (Blocked)';
                 statusEl.className = 'text-error';
-
-                // AUTO CHECK OUT LOGIC (Location)
                 handleAutoCheckout(dist);
             } else {
-                // Buffer zone (30m - 40m)
                 statusEl.innerText = 'Warning: Boundary';
                 statusEl.className = 'text-warning';
             }
@@ -415,25 +421,26 @@ function updatePosition() {
 
         // AUTO CHECK OUT LOGIC (Time: 8:00 PM)
         const now = new Date();
-        if (now.getHours() >= 20) { // 8 PM
+        if (now.getHours() >= 20) {
             handleShiftEndAutoCheckout();
         }
 
     }, err => {
         console.warn('GPS Error', err);
-    }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
+        const statusEl = document.getElementById('geofence-status');
+        if (statusEl) statusEl.innerText = 'GPS Error: ' + (err.message || 'Timeout');
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
 async function handleAutoCheckin(distance) {
     if (!currentUser || currentUser.role === 'admin') return;
 
-    // Shift Hours: 8:00 AM to 8:00 PM
     const now = new Date();
     const hour = now.getHours();
     if (hour < 8 || hour >= 20) return;
 
     const records = await getRecords();
-    const today = new Date().toLocaleDateString();
+    const today = getTodayStr();
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
     const lastRecord = todayLogs[0];
 
@@ -448,7 +455,7 @@ async function handleAutoCheckin(distance) {
 async function handleShiftEndAutoCheckout() {
     if (!currentUser || currentUser.role === 'admin') return;
     const records = await getRecords();
-    const today = new Date().toLocaleDateString();
+    const today = getTodayStr();
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
     const lastRecord = todayLogs[0];
 
@@ -463,7 +470,7 @@ async function handleAutoCheckout(distance) {
     if (!currentUser || currentUser.role === 'admin') return;
 
     const records = await getRecords();
-    const today = new Date().toLocaleDateString();
+    const today = getTodayStr();
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
     const lastRecord = todayLogs[0]; // records is sorted desc
 
@@ -483,7 +490,7 @@ async function autoSubmitAttendance(type, status) {
         shopName: config.shopName,
         timestamp: now.toISOString(),
         time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        date: now.toLocaleDateString(),
+        date: getTodayStr(),
         coords: userCoords,
         image: 'https://cdn-icons-png.flaticon.com/512/9131/9131546.png', // Placeholder for auto-log
         type: type,
@@ -571,7 +578,7 @@ function captureSelfie() {
 async function submitAttendance() {
     const records = await getRecords();
     const now = new Date();
-    const today = now.toLocaleDateString();
+    const today = getTodayStr();
 
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
     const lastRecord = todayLogs[0]; // records is sorted desc
@@ -625,7 +632,7 @@ async function submitAttendance() {
 // --- DASHBOARD UPDATES ---
 async function updateShiftStatus() {
     const records = await getRecords();
-    const today = new Date().toLocaleDateString();
+    const today = getTodayStr();
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
     const lastRecord = todayLogs[0]; // sorted desc
 
@@ -701,7 +708,7 @@ async function renderEmployeeHistory() {
 
 async function renderAdminStats() {
     const records = await getRecords();
-    const today = new Date().toLocaleDateString();
+    const today = getTodayStr();
     const todayRecords = records.filter(r => r.date === today);
 
     const uniquePresent = [...new Set(todayRecords.map(r => r.empId))];
