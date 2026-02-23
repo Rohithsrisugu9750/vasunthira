@@ -226,6 +226,7 @@ function setupEventListeners() {
     document.getElementById('btn-set-current-loc').addEventListener('click', setCurrentGPS);
     document.getElementById('btn-add-employee').addEventListener('click', addEmployee);
     document.getElementById('btn-export-reports').addEventListener('click', exportExcel);
+    document.getElementById('btn-fetch-coords').addEventListener('click', fetchCoordinatesFromAddress);
 
     // Logout
     document.getElementById('nav-logout').addEventListener('click', logout);
@@ -906,6 +907,46 @@ function updateToggleUI() {
         dbToggle.className = 'fas fa-toggle-on text-primary';
     } else {
         dbToggle.className = 'fas fa-toggle-off text-dim';
+    }
+}
+
+async function fetchCoordinatesFromAddress() {
+    const name = document.getElementById('shop-name').value;
+    const pincode = document.getElementById('shop-pincode').value;
+    const statusEl = document.getElementById('geocoding-status');
+
+    if (!name || !pincode) return alert('Please enter both Location Name and Pincode.');
+
+    statusEl.innerText = 'Searching coordinates...';
+    statusEl.classList.remove('hidden');
+
+    try {
+        const query = encodeURIComponent(`${name} ${pincode} India`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+
+            document.getElementById('shop-lat').value = lat.toFixed(6);
+            document.getElementById('shop-lng').value = lon.toFixed(6);
+
+            statusEl.innerText = `Success: Found ${data[0].display_name}`;
+            statusEl.style.color = 'var(--success)';
+
+            // Auto update search link
+            updateGmapsSearchLink();
+
+            setTimeout(() => statusEl.classList.add('hidden'), 5000);
+        } else {
+            statusEl.innerText = 'Location not found. Try a more specific name or manual capture.';
+            statusEl.style.color = 'var(--error)';
+        }
+    } catch (error) {
+        console.error('Geocoding Error:', error);
+        statusEl.innerText = 'Search failed. Please check your internet or use manual capture.';
+        statusEl.style.color = 'var(--error)';
     }
 }
 
