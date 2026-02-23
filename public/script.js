@@ -227,6 +227,7 @@ function setupEventListeners() {
     document.getElementById('btn-add-employee').addEventListener('click', addEmployee);
     document.getElementById('btn-export-reports').addEventListener('click', exportExcel);
     document.getElementById('btn-fetch-coords').addEventListener('click', fetchCoordinatesFromAddress);
+    document.getElementById('btn-extract-link').addEventListener('click', extractCoordsFromLink);
 
     // Logout
     document.getElementById('nav-logout').addEventListener('click', logout);
@@ -947,6 +948,39 @@ async function fetchCoordinatesFromAddress() {
         console.error('Geocoding Error:', error);
         statusEl.innerText = 'Search failed. Please check your internet or use manual capture.';
         statusEl.style.color = 'var(--error)';
+    }
+}
+
+function extractCoordsFromLink() {
+    const url = document.getElementById('gmaps-link-input').value;
+    const statusEl = document.getElementById('geocoding-status');
+
+    if (!url) return alert('Please paste a Google Maps URL first.');
+
+    // Regex patterns for different Google Maps URL formats
+    // 1. Full URL with @lat,lng
+    const atPattern = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+    // 2. Search/Place URL with q=lat,lng
+    const qPattern = /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/;
+    // 3. Simple Lat,Lng in query
+    const llPattern = /ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
+
+    const match = url.match(atPattern) || url.match(qPattern) || url.match(llPattern);
+
+    if (match) {
+        document.getElementById('shop-lat').value = parseFloat(match[1]).toFixed(6);
+        document.getElementById('shop-lng').value = parseFloat(match[2]).toFixed(6);
+
+        statusEl.innerText = "Success: Coordinates extracted from URL!";
+        statusEl.style.color = "var(--success)";
+        statusEl.classList.remove('hidden');
+        setTimeout(() => statusEl.classList.add('hidden'), 5000);
+    } else {
+        if (url.includes('maps.app.goo.gl')) {
+            alert("This is a shortened 'maps.app.goo.gl' link. Please open it in your browser first and then copy the full link from the address bar (it should have @latitude,longitude in the name).");
+        } else {
+            alert("Could not find coordinates in this link. Try copying the link directly from your browser's address bar while viewing the shop position.");
+        }
     }
 }
 

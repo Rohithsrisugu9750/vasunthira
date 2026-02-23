@@ -312,11 +312,27 @@
                         </div>
 
                         <div id="geocoding-container" class="mb-4">
-                            <button class="btn btn-secondary w-full" id="btn-fetch-coords"
-                                style="background: rgba(255,255,255,0.05); border: 1px dashed var(--primary); color: var(--primary); padding: 12px; margin: 10px 0;">
-                                <i class="fas fa-wand-magic-sparkles"></i>
-                                <span>Get Lat/Lng from Name & Pincode</span>
-                            </button>
+                            <div class="flex-col gap-2">
+                                <button class="btn btn-secondary w-full" id="btn-fetch-coords"
+                                    style="background: rgba(255,255,255,0.05); border: 1px dashed var(--primary); color: var(--primary); padding: 12px; margin-bottom: 10px;">
+                                    <i class="fas fa-wand-magic-sparkles"></i>
+                                    <span>Search by Name & Pincode</span>
+                                </button>
+
+                                <div class="form-group"
+                                    style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                                    <label style="font-size: 0.75rem; color: var(--text-dim);">...OR Paste Location
+                                        Link</label>
+                                    <div class="flex gap-2 mt-2">
+                                        <input type="text" id="gmaps-link-input"
+                                            placeholder="Paste Google Maps URL here" style="flex:1; font-size: 0.8rem;">
+                                        <button class="btn btn-secondary" id="btn-extract-link"
+                                            style="padding: 0 15px;">
+                                            <i class="fas fa-link"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             <p id="geocoding-status" class="hidden mt-2 text-center"
                                 style="font-size: 0.7rem; color: var(--text-light);"></p>
                         </div>
