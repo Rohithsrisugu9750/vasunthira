@@ -20,6 +20,8 @@ let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
     lat: 13.0827, // Default Chennai lat
     lng: 80.2707, // Default Chennai lng
     radius: 30,   // Strict 30m requirement
+    shopName: 'Juice Shop',
+    shopPincode: '',
     salaryDay: 500,
     salaryOT: 100,
     deviceBinding: true
@@ -170,8 +172,13 @@ async function handleLogin() {
         switchSection('home');
         startGPSMonitoring();
         updateShiftStatus();
+
+        // Set dynamic shop name in UI
+        const shopDisplay = document.getElementById('display-shop-name');
+        if (shopDisplay) shopDisplay.innerText = config.shopName || 'Shop';
     }
 }
+
 async function saveEmployees() {
     localStorage.setItem('attendance_pro_employees', JSON.stringify(employees));
     if (attendanceDb) {
@@ -229,6 +236,21 @@ function setupEventListeners() {
         saveConfig(false);
         updateToggleUI();
     });
+
+    // Dynamic Shop Search Link
+    const shopNameInput = document.getElementById('shop-name');
+    const shopPincodeInput = document.getElementById('shop-pincode');
+    if (shopNameInput) shopNameInput.addEventListener('input', updateGmapsSearchLink);
+    if (shopPincodeInput) shopPincodeInput.addEventListener('input', updateGmapsSearchLink);
+}
+
+function updateGmapsSearchLink() {
+    const name = document.getElementById('shop-name').value;
+    const pin = document.getElementById('shop-pincode').value;
+    const link = document.getElementById('link-find-coords');
+    if (link) {
+        link.href = `https://www.google.com/maps/search/${encodeURIComponent(name + ' ' + pin)}`;
+    }
 }
 
 // --- NAVIGATION & UI ---
@@ -273,12 +295,15 @@ function switchSection(sectionName) {
         if (sectionName === 'settings') {
             document.getElementById('section-admin-geofence').classList.add('active');
             // Update inputs with current config
+            document.getElementById('shop-name').value = config.shopName || 'Juice Shop';
+            document.getElementById('shop-pincode').value = config.shopPincode || '';
             document.getElementById('shop-lat').value = config.lat;
             document.getElementById('shop-lng').value = config.lng;
             document.getElementById('shop-radius').value = config.radius;
             document.getElementById('salary-rate-day').value = config.salaryDay;
             document.getElementById('salary-rate-ot').value = config.salaryOT;
             updateToggleUI();
+            updateGmapsSearchLink();
         }
     }
 }
@@ -357,6 +382,15 @@ function updatePosition() {
         const statusEl = document.getElementById('geofence-status');
 
         if (distEl) distEl.innerText = `${Math.round(dist)}m`;
+
+        // Google Maps Link for Current Location
+        const gmapBtn = document.getElementById('btn-open-gmaps');
+        const gmapContainer = document.getElementById('gmap-link-container');
+        if (gmapBtn && gmapContainer) {
+            gmapContainer.classList.remove('hidden');
+            gmapBtn.href = `https://www.google.com/maps?q=${config.lat},${config.lng}`;
+        }
+
         if (statusEl) {
             if (dist <= 30) {
                 statusEl.innerText = 'Inside Shop (Secure)';
@@ -444,6 +478,7 @@ async function autoSubmitAttendance(type, status) {
     const record = {
         empId: currentUser.id,
         empName: currentUser.name,
+        shopName: config.shopName,
         timestamp: now.toISOString(),
         time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         date: now.toLocaleDateString(),
@@ -554,6 +589,7 @@ async function submitAttendance() {
     const record = {
         empId: currentUser.id,
         empName: currentUser.name,
+        shopName: config.shopName,
         timestamp: now.toISOString(),
         time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         date: today,
@@ -681,11 +717,13 @@ async function renderAdminStats() {
     todayRecords.forEach(r => {
         const item = document.createElement('div');
         item.className = 'list-item';
+        const gmapUrl = r.coords ? `https://www.google.com/maps?q=${r.coords.lat},${r.coords.lng}` : '#';
         item.innerHTML = `
             <img src="${r.image}" class="list-img">
             <div class="list-content">
                 <div class="list-title">${r.empName}</div>
                 <div class="list-subtitle">${r.type} @ ${r.time}</div>
+                ${r.coords ? `<a href="${gmapUrl}" target="_blank" style="font-size:0.7rem; color:var(--primary); text-decoration:none;"><i class="fas fa-location-dot"></i> View Location</a>` : ''}
             </div>
             <div class="status-pill status-${r.status === 'Present' ? 'valid' : 'warning'}">${r.status}</div>
         `;
@@ -809,6 +847,17 @@ async function renderSalaryModule() {
                 </div>
                 <div class="text-primary" style="font-size:1.2rem; font-weight:800;">₹${Math.round(basePay + otPay)}</div>
             </div>
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-3">
+                    <span id="distance-value" style="font-size: 1.2rem; font-weight: 800;">-- m</span>
+                </div>
+                <div id="gmap-link-container" class="mt-4 hidden">
+                    <a id="btn-open-gmaps" href="#" target="_blank" class="btn btn-secondary w-full" style="padding: 10px; font-size: 0.8rem; background: rgba(255,255,255,0.05);">
+                        <i class="fas fa-map-location-dot"></i>
+                        <span>See Shop on Google Maps</span>
+                    </a>
+                </div>
+            </div>
             <div class="daily-logs" style="background: rgba(0,0,0,0.2); padding:10px; border-radius:12px;">
                 <p style="font-size:0.7rem; text-transform:uppercase; margin-bottom:8px; font-weight:700;">Daily Hours Tracking</p>
                 ${dayBreakdownHTML || '<p style="font-size:0.75rem;">No completed sessions yet.</p>'}
@@ -832,11 +881,17 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 
 async function saveConfig(showMsg = true) {
+    config.shopName = document.getElementById('shop-name').value || 'Juice Shop';
+    config.shopPincode = document.getElementById('shop-pincode').value || '';
     config.lat = parseFloat(document.getElementById('shop-lat').value);
     config.lng = parseFloat(document.getElementById('shop-lng').value);
     config.radius = parseInt(document.getElementById('shop-radius').value);
     config.salaryDay = parseInt(document.getElementById('salary-rate-day').value);
     config.salaryOT = parseInt(document.getElementById('salary-rate-ot').value);
+
+    // Update UI elements immediately
+    const shopDisplay = document.getElementById('display-shop-name');
+    if (shopDisplay) shopDisplay.innerText = config.shopName;
 
     localStorage.setItem('attendance_pro_config', JSON.stringify(config));
     if (attendanceDb) {

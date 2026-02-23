@@ -170,11 +170,18 @@
                                 <i class="fas fa-map-location-dot text-primary" style="font-size: 1.5rem;"></i>
                                 <div class="flex-col">
                                     <span id="geofence-status" style="font-weight: 600;">Detecting...</span>
-                                    <span style="font-size: 0.7rem; color: var(--text-dim);">Proximity to Juice
-                                        Shop</span>
+                                    <span style="font-size: 0.7rem; color: var(--text-dim);">Proximity to <span
+                                            id="display-shop-name">Shop</span></span>
                                 </div>
                             </div>
                             <span id="distance-value" style="font-size: 1.2rem; font-weight: 800;">-- m</span>
+                        </div>
+                        <div id="gmap-link-container" class="mt-4 hidden">
+                            <a id="btn-open-gmaps" href="#" target="_blank" class="btn btn-secondary w-full"
+                                style="padding: 10px; font-size: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                                <i class="fas fa-map-location-dot"></i>
+                                <span>See Shop on Google Maps</span>
+                            </a>
                         </div>
                     </div>
 
@@ -293,8 +300,24 @@
                 <div id="section-admin-geofence" class="dashboard-section slide-up">
                     <div class="card">
                         <h3 class="mb-6">Geofence Configuration</h3>
+                        <div class="form-group flex gap-4">
+                            <div class="flex-2">
+                                <label>Location Name (e.g. Main Shop)</label>
+                                <input type="text" id="shop-name" placeholder="Enter shop name">
+                            </div>
+                            <div class="flex-1">
+                                <label>Pincode</label>
+                                <input type="text" id="shop-pincode" placeholder="600001">
+                            </div>
+                        </div>
                         <div class="form-group">
-                            <label>Shop Location Coordinates</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label>Shop Location Coordinates</label>
+                                <a id="link-find-coords" href="#" target="_blank"
+                                    style="font-size: 0.65rem; color: var(--primary); text-decoration: none;">
+                                    <i class="fas fa-search-location"></i> Find on Google Maps
+                                </a>
+                            </div>
                             <div class="flex gap-4">
                                 <div class="flex-1">
                                     <label style="font-size: 0.7rem;">LATITUDE</label>
