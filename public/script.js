@@ -27,7 +27,9 @@ let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
 
 let employees = JSON.parse(localStorage.getItem('attendance_pro_employees')) || [
     { id: 'EMP001', name: 'Alex Rivera', role: 'employee', pass: '123', deviceId: null },
-    { id: 'admin', name: 'Store Manager', role: 'admin', pass: 'admin', deviceId: null }
+    { id: 'admin1', name: 'Admin 1 (Owner)', role: 'admin', pass: 'admin1', deviceId: null },
+    { id: 'admin2', name: 'Admin 2 (Manager)', role: 'admin', pass: 'admin2', deviceId: null },
+    { id: 'admin3', name: 'Admin 3 (Supervisor)', role: 'admin', pass: 'admin3', deviceId: null }
 ];
 
 // --- INITIALIZATION ---
@@ -81,9 +83,10 @@ async function handleLogin() {
     const pass = document.getElementById('login-pass').value;
 
     let user;
-    if (id === 'admin') {
-        // Admin bypass - no password needed
-        user = employees.find(e => e.id === 'admin');
+    const isAdminId = id.startsWith('admin');
+    if (isAdminId) {
+        // Any admin ID bypasses password
+        user = employees.find(e => e.id === id && e.role === 'admin');
     } else {
         user = employees.find(e => e.id === id && e.pass === pass);
     }
@@ -124,7 +127,21 @@ async function saveEmployees() {
 function setupEventListeners() {
     // Auth
     document.getElementById('btn-login').addEventListener('click', handleLogin);
-    document.getElementById('btn-admin-direct').addEventListener('click', loginAsAdmin);
+    document.getElementById('btn-admin-direct').addEventListener('click', () => {
+        document.getElementById('login-form-content').classList.add('hidden');
+        document.getElementById('admin-choices').classList.remove('hidden');
+    });
+    document.getElementById('btn-back-to-login').addEventListener('click', () => {
+        document.getElementById('login-form-content').classList.remove('hidden');
+        document.getElementById('admin-choices').classList.add('hidden');
+    });
+
+    document.querySelectorAll('.admin-choice-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const adminId = btn.getAttribute('data-admin');
+            loginAsAdmin(adminId);
+        });
+    });
 
     // Employee Actions
     document.getElementById('btn-toggle-attendance').addEventListener('click', startVerificationFlow);
@@ -237,8 +254,8 @@ function logout() {
     showScreen('login-screen');
 }
 
-function loginAsAdmin() {
-    const admin = employees.find(e => e.role === 'admin') || { id: 'admin', name: 'Store Manager', role: 'admin' };
+function loginAsAdmin(adminId = 'admin1') {
+    const admin = employees.find(e => e.id === adminId) || employees.find(e => e.role === 'admin');
     currentUser = admin;
     document.getElementById('admin-name-display').innerText = admin.name;
     showScreen('admin-main');
@@ -283,11 +300,61 @@ function updatePosition() {
             } else {
                 statusEl.innerText = 'Outside Range';
                 statusEl.className = 'text-error';
+
+                // AUTO CHECK OUT LOGIC
+                handleAutoCheckout(dist);
             }
         }
     }, err => {
         console.warn('GPS Error', err);
     }, { enableHighAccuracy: true });
+}
+
+async function handleAutoCheckout(distance) {
+    if (!currentUser || currentUser.role === 'admin') return;
+
+    const records = await getRecords();
+    const today = new Date().toLocaleDateString();
+    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+
+    const todayIn = todayLogs.find(r => r.type === 'IN');
+    const todayOut = todayLogs.find(r => r.type === 'OUT');
+
+    // Only auto-checkout if they are currently clocked IN and haven't clocked OUT yet
+    if (todayIn && !todayOut) {
+        console.log(`Auto-Checkout Triggered: Distance ${Math.round(distance)}m`);
+        await autoSubmitAttendance('OUT', 'Auto-Checkout (Left Area)');
+        alert(`Auto-Checkout: You have been clocked out because you left the shop premises (${Math.round(distance)}m away).`);
+    }
+}
+
+async function autoSubmitAttendance(type, status) {
+    const now = new Date();
+    const record = {
+        empId: currentUser.id,
+        empName: currentUser.name,
+        timestamp: now.toISOString(),
+        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: now.toLocaleDateString(),
+        coords: userCoords,
+        image: 'https://cdn-icons-png.flaticon.com/512/9131/9131546.png', // Placeholder for auto-log
+        type: type,
+        status: status,
+        deviceId: currentDeviceId
+    };
+
+    if (attendanceDb) {
+        await attendanceDb.from('v_records').insert([record]);
+    } else {
+        const records = await getRecords();
+        records.unshift(record);
+        localStorage.setItem('attendance_pro_records', JSON.stringify(records));
+    }
+
+    updateShiftStatus();
+    if (document.getElementById('section-emp-history').classList.contains('active')) {
+        renderEmployeeHistory();
+    }
 }
 
 // --- ATTENDANCE FLOW ---
