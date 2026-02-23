@@ -358,20 +358,69 @@ function updatePosition() {
 
         if (distEl) distEl.innerText = `${Math.round(dist)}m`;
         if (statusEl) {
-            if (dist <= 30) { // Force 30m strictness
+            if (dist <= 30) {
                 statusEl.innerText = 'Inside Shop (Secure)';
                 statusEl.className = 'text-success';
-            } else {
+
+                // AUTO CHECK IN LOGIC (Arrival)
+                handleAutoCheckin(dist);
+            } else if (dist > 40) { // 10m Buffer zone to prevent jitter
                 statusEl.innerText = 'Outside (Blocked)';
                 statusEl.className = 'text-error';
 
-                // AUTO CHECK OUT LOGIC
+                // AUTO CHECK OUT LOGIC (Location)
                 handleAutoCheckout(dist);
+            } else {
+                // Buffer zone (30m - 40m)
+                statusEl.innerText = 'Warning: Boundary';
+                statusEl.className = 'text-warning';
             }
         }
+
+        // AUTO CHECK OUT LOGIC (Time: 8:00 PM)
+        const now = new Date();
+        if (now.getHours() >= 20) { // 8 PM
+            handleShiftEndAutoCheckout();
+        }
+
     }, err => {
         console.warn('GPS Error', err);
     }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
+}
+
+async function handleAutoCheckin(distance) {
+    if (!currentUser || currentUser.role === 'admin') return;
+
+    // Shift Hours: 8:00 AM to 8:00 PM
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour < 8 || hour >= 20) return;
+
+    const records = await getRecords();
+    const today = new Date().toLocaleDateString();
+    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+    const lastRecord = todayLogs[0];
+
+    // Only auto-checkin if they are currently OFF DUTY (either never checked in today, or last record was OUT)
+    if (!lastRecord || lastRecord.type === 'OUT') {
+        console.log(`Auto-Checkin Triggered: Arrived at Shop (${Math.round(distance)}m)`);
+        await autoSubmitAttendance('IN', 'Auto-Checkin (Arrived)');
+        alert(`Auto-Checkin Success: You have been clocked in automatically upon arrival at the shop.`);
+    }
+}
+
+async function handleShiftEndAutoCheckout() {
+    if (!currentUser || currentUser.role === 'admin') return;
+    const records = await getRecords();
+    const today = new Date().toLocaleDateString();
+    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+    const lastRecord = todayLogs[0];
+
+    if (lastRecord && lastRecord.type === 'IN') {
+        console.log("Shift End Auto-Checkout: 8:00 PM reached.");
+        await autoSubmitAttendance('OUT', 'Auto-Checkout (Shift Ended)');
+        alert("Shift Ended: You have been automatically clocked out (8:00 PM).");
+    }
 }
 
 async function handleAutoCheckout(distance) {
@@ -382,8 +431,8 @@ async function handleAutoCheckout(distance) {
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
     const lastRecord = todayLogs[0]; // records is sorted desc
 
-    // Only auto-checkout if they are currently clocked IN
-    if (lastRecord && lastRecord.type === 'IN') {
+    // Only auto-checkout if they are currently clocked IN and beyond the 40m buffer
+    if (lastRecord && lastRecord.type === 'IN' && distance > 40) {
         console.log(`Auto-Checkout Triggered: Distance ${Math.round(distance)}m`);
         await autoSubmitAttendance('OUT', 'Auto-Checkout (Left Area)');
         alert(`Auto-Checkout: You have been clocked out because you left the shop premises (${Math.round(distance)}m away).`);
@@ -492,12 +541,12 @@ async function submitAttendance() {
 
     const type = (lastRecord && lastRecord.type === 'IN') ? 'OUT' : 'IN';
 
-    // Status Logic
+    // Status Logic: Shift starts at 8:00 AM
     let status = 'Present';
     if (type === 'IN') {
         const hour = now.getHours();
         const mins = now.getMinutes();
-        if (hour > 9 || (hour === 9 && mins > 30)) status = 'Late';
+        if (hour > 8 || (hour === 8 && mins > 0)) status = 'Late';
     } else if (lastRecord && lastRecord.status && lastRecord.status.includes('Auto')) {
         status = 'Re-check-out';
     }
@@ -744,7 +793,7 @@ async function renderSalaryModule() {
 
         const daysPresent = dates.length;
         const basePay = daysPresent * config.salaryDay;
-        const otPay = Math.max(0, totalHours - (daysPresent * 8)) * config.salaryOT;
+        const otPay = Math.max(0, totalHours - (daysPresent * 12)) * config.salaryOT;
 
         const item = document.createElement('div');
         item.className = 'card';
