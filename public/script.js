@@ -208,8 +208,15 @@ function setupEventListeners() {
     // Auth
     document.getElementById('btn-login').addEventListener('click', handleLogin);
     document.getElementById('btn-admin-direct').addEventListener('click', () => {
-        document.getElementById('login-form-content').classList.add('hidden');
-        document.getElementById('admin-choices').classList.remove('hidden');
+        const pass = prompt("Enter Manager Access Password:");
+        // Match against Admin 1 password
+        const masterAdmin = employees.find(e => e.id === 'admin1');
+        if (pass === masterAdmin.pass) {
+            document.getElementById('login-form-content').classList.add('hidden');
+            document.getElementById('admin-choices').classList.remove('hidden');
+        } else {
+            alert("Incorrect Password. Access Denied.");
+        }
     });
     document.getElementById('btn-back-to-login').addEventListener('click', () => {
         document.getElementById('login-form-content').classList.remove('hidden');
