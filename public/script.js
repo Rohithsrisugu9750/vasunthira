@@ -38,6 +38,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initApp() {
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('Service Worker Registered'))
+            .catch(err => console.log('Service Worker Failed to Register', err));
+    }
+
     // Generate or get Device ID
     currentDeviceId = localStorage.getItem('attendance_device_id');
     if (!currentDeviceId) {
@@ -50,13 +57,40 @@ async function initApp() {
     setupEventListeners();
     showScreen('login-screen');
 
+    // Handle Online/Offline Status
+    window.addEventListener('online', () => {
+        document.body.classList.remove('is-offline');
+        syncUnsyncedRecords();
+    });
+    window.addEventListener('offline', () => {
+        document.body.classList.add('is-offline');
+    });
+    if (!navigator.onLine) document.body.classList.add('is-offline');
+
     // Then sync from DB in the background
     console.log("Connecting to Supabase...");
     syncFromSupabase().then(() => {
         console.log("Supabase Synced Successfully!");
+        syncUnsyncedRecords();
     }).catch(err => {
-        console.error("Database Connection Failed. Check if you created the tables.");
+        console.error("Database Connection Failed. Working Offline.");
     });
+}
+
+// --- OFFLINE SYNC LOGIC ---
+async function syncUnsyncedRecords() {
+    if (!navigator.onLine || !attendanceDb) return;
+    const unsynced = JSON.parse(localStorage.getItem('unsynced_records') || '[]');
+    if (unsynced.length === 0) return;
+
+    console.log(`Syncing ${unsynced.length} records...`);
+    try {
+        const { error } = await attendanceDb.from('v_records').insert(unsynced);
+        if (!error) {
+            localStorage.removeItem('unsynced_records');
+            console.log("Sync Complete!");
+        }
+    } catch (e) { console.error("Sync Failed", e); }
 }
 
 async function syncFromSupabase() {
@@ -73,9 +107,24 @@ async function syncFromSupabase() {
 }
 
 async function getRecords() {
-    if (!attendanceDb) return JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
-    const { data } = await attendanceDb.from('v_records').select('*').order('timestamp', { ascending: false });
-    return data || [];
+    // Always get local first
+    const local = JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
+
+    if (!attendanceDb || !navigator.onLine) return local;
+
+    try {
+        const { data } = await attendanceDb.from('v_records').select('*').order('timestamp', { ascending: false });
+        if (data) {
+            // Merge logic: If DB has newer or different data, we might want to sync, 
+            // but for now, we'll return DB data as the source of truth when online
+            // and update local storage to keep it in sync
+            localStorage.setItem('attendance_pro_records', JSON.stringify(data));
+            return data;
+        }
+    } catch (e) {
+        console.warn("DB Fetch failed, using local records", e);
+    }
+    return local;
 }
 
 async function handleLogin() {
@@ -316,12 +365,10 @@ async function handleAutoCheckout(distance) {
     const records = await getRecords();
     const today = new Date().toLocaleDateString();
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+    const lastRecord = todayLogs[0]; // records is sorted desc
 
-    const todayIn = todayLogs.find(r => r.type === 'IN');
-    const todayOut = todayLogs.find(r => r.type === 'OUT');
-
-    // Only auto-checkout if they are currently clocked IN and haven't clocked OUT yet
-    if (todayIn && !todayOut) {
+    // Only auto-checkout if they are currently clocked IN
+    if (lastRecord && lastRecord.type === 'IN') {
         console.log(`Auto-Checkout Triggered: Distance ${Math.round(distance)}m`);
         await autoSubmitAttendance('OUT', 'Auto-Checkout (Left Area)');
         alert(`Auto-Checkout: You have been clocked out because you left the shop premises (${Math.round(distance)}m away).`);
@@ -343,12 +390,18 @@ async function autoSubmitAttendance(type, status) {
         deviceId: currentDeviceId
     };
 
-    if (attendanceDb) {
+    // Always save locally first for offline support
+    const localRecords = JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
+    localRecords.unshift(record);
+    localStorage.setItem('attendance_pro_records', JSON.stringify(localRecords));
+
+    if (attendanceDb && navigator.onLine) {
         await attendanceDb.from('v_records').insert([record]);
     } else {
-        const records = await getRecords();
-        records.unshift(record);
-        localStorage.setItem('attendance_pro_records', JSON.stringify(records));
+        // Queue for sync
+        const unsynced = JSON.parse(localStorage.getItem('unsynced_records') || '[]');
+        unsynced.push(record);
+        localStorage.setItem('unsynced_records', JSON.stringify(unsynced));
     }
 
     updateShiftStatus();
@@ -418,8 +471,10 @@ async function submitAttendance() {
     const now = new Date();
     const today = now.toLocaleDateString();
 
-    const todayIn = records.find(r => r.empId === currentUser.id && r.date === today && r.type === 'IN');
-    const type = todayIn ? 'OUT' : 'IN';
+    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+    const lastRecord = todayLogs[0]; // records is sorted desc
+
+    const type = (lastRecord && lastRecord.type === 'IN') ? 'OUT' : 'IN';
 
     // Status Logic
     let status = 'Present';
@@ -427,6 +482,8 @@ async function submitAttendance() {
         const hour = now.getHours();
         const mins = now.getMinutes();
         if (hour > 9 || (hour === 9 && mins > 30)) status = 'Late';
+    } else if (lastRecord && lastRecord.status && lastRecord.status.includes('Auto')) {
+        status = 'Re-check-out';
     }
 
     const record = {
@@ -442,11 +499,18 @@ async function submitAttendance() {
         deviceId: currentDeviceId
     };
 
-    if (attendanceDb) {
+    // Always save locally first
+    const localRecords = JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
+    localRecords.unshift(record);
+    localStorage.setItem('attendance_pro_records', JSON.stringify(localRecords));
+
+    if (attendanceDb && navigator.onLine) {
         await attendanceDb.from('v_records').insert([record]);
     } else {
-        records.unshift(record);
-        localStorage.setItem('attendance_pro_records', JSON.stringify(records));
+        // Queue for sync
+        const unsynced = JSON.parse(localStorage.getItem('unsynced_records') || '[]');
+        unsynced.push(record);
+        localStorage.setItem('unsynced_records', JSON.stringify(unsynced));
     }
 
     alert(`Successfully Checked ${type}!`);
@@ -460,28 +524,27 @@ async function updateShiftStatus() {
     const records = await getRecords();
     const today = new Date().toLocaleDateString();
     const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-
-    const todayIn = todayLogs.find(r => r.type === 'IN');
-    const todayOut = todayLogs.find(r => r.type === 'OUT');
+    const lastRecord = todayLogs[0]; // sorted desc
 
     const badge = document.getElementById('attendance-status-badge');
     const btnText = document.getElementById('attendance-btn-text');
     const toggleBtn = document.getElementById('btn-toggle-attendance');
     const timerLabel = document.getElementById('timer-label');
 
-    if (todayOut) {
-        badge.className = 'status-pill status-invalid';
-        badge.querySelector('span').innerText = 'Shift Ended';
-        btnText.innerText = 'Completed';
-        toggleBtn.disabled = true;
-        stopShiftTimer();
-    } else if (todayIn) {
+    if (lastRecord && lastRecord.type === 'IN') {
         badge.className = 'status-pill status-valid';
         badge.querySelector('span').innerText = 'At Work';
         btnText.innerText = 'Check Out';
         toggleBtn.disabled = false;
         timerLabel.classList.remove('hidden');
-        startShiftTimer(new Date(todayIn.timestamp));
+        startShiftTimer(new Date(lastRecord.timestamp));
+    } else if (lastRecord && lastRecord.type === 'OUT') {
+        badge.className = 'status-pill status-invalid';
+        badge.querySelector('span').innerText = 'Off Duty (Out)';
+        btnText.innerText = 'Check In Again';
+        toggleBtn.disabled = false;
+        timerLabel.classList.add('hidden');
+        stopShiftTimer();
     } else {
         badge.className = 'status-pill status-invalid';
         badge.querySelector('span').innerText = 'Off Duty';
