@@ -16,6 +16,54 @@ let userCoords = null;
 let gpsAccuracy = 0;
 let timerInterval = null;
 let currentDeviceId = null;
+let currentLang = localStorage.getItem('attendance_pro_lang') || 'en';
+
+const i18n = {
+    en: {
+        login_title: "Portal Access",
+        login_subtitle: "Verify your credentials to continue",
+        login_id_label: "Employee / Admin ID",
+        login_id_placeholder: "Enter your ID",
+        login_pass_label: "Password",
+        login_pass_placeholder: "••••••••",
+        btn_login: "Authenticate",
+        btn_manager_portal: "Manager Portal Access",
+        shift_overview: "Shift Overview",
+        owner_msg_title: "Message from Owner",
+        checking_in: "Checking in...",
+        session_timer: "Session Timer",
+        off_duty: "Off Duty",
+        active_session: "Active Work Session",
+        compliance_check: "Compliance Check",
+        detecting: "Detecting...",
+        proximity_to: "Proximity to",
+        btn_see_gmaps: "See Shop on Google Maps",
+        btn_start_verification: "Start Verification",
+        lang_text: "தமிழ்"
+    },
+    ta: {
+        login_title: "போர்டல் அணுகல்",
+        login_subtitle: "தொடர உங்கள் விவரங்களைச் சரிபார்க்கவும்",
+        login_id_label: "பணியாளர் / நிர்வாகி ஐடி",
+        login_id_placeholder: "உங்கள் ஐடியை உள்ளிடவும்",
+        login_pass_label: "கடவுச்சொல்",
+        login_pass_placeholder: "••••••••",
+        btn_login: "அங்கீகரிக்கவும்",
+        btn_manager_portal: "மேலாளர் போர்டல் அணுகல்",
+        shift_overview: "ஷிப்ட் மேலோட்டம்",
+        owner_msg_title: "உரிமையாளரிடமிருந்து செய்தி",
+        checking_in: "சரிபார்க்கிறது...",
+        session_timer: "செஷன் டைமர்",
+        off_duty: "கடமையில் இல்லை",
+        active_session: "செயலில் உள்ள வேலை அமர்வு",
+        compliance_check: "இணக்க சரிபார்ப்பு",
+        detecting: "கண்டறியப்படுகிறது...",
+        proximity_to: "அருகாமையில்",
+        btn_see_gmaps: "கூகுள் மேப்ஸில் கடையைப் பார்க்கவும்",
+        btn_start_verification: "சரிபார்ப்பைத் தொடங்கு",
+        lang_text: "English"
+    }
+};
 let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
     lat: 13.0827, // Default Chennai lat
     lng: 80.2707, // Default Chennai lng
@@ -30,9 +78,9 @@ let config = JSON.parse(localStorage.getItem('attendance_pro_config')) || {
 
 let employees = JSON.parse(localStorage.getItem('attendance_pro_employees')) || [
     { id: 'EMP001', name: 'Alex Rivera', role: 'employee', pass: '123', deviceId: null },
-    { id: 'admin1', name: 'Admin 1 (Owner)', role: 'admin', pass: 'admin1', deviceId: null },
-    { id: 'admin2', name: 'Admin 2 (Manager)', role: 'admin', pass: 'admin2', deviceId: null },
-    { id: 'admin3', name: 'Admin 3 (Supervisor)', role: 'admin', pass: 'admin3', deviceId: null }
+    { id: 'admin1', name: 'Vasu (Owner)', role: 'admin', pass: 'vasu1', deviceId: null },
+    { id: 'admin2', name: 'Manager', role: 'admin', pass: 'vasu2', deviceId: null },
+    { id: 'admin3', name: 'Supervisor', role: 'admin', pass: 'vasu3', deviceId: null }
 ];
 
 // --- INITIALIZATION ---
@@ -58,6 +106,7 @@ async function initApp() {
     // Initialize UI first so buttons work
     setupNav();
     setupEventListeners();
+    updateLanguage();
     showScreen('login-screen');
 
     // Handle Online/Offline Status
@@ -221,6 +270,12 @@ function setupEventListeners() {
     document.getElementById('btn-back-to-login').addEventListener('click', () => {
         document.getElementById('login-form-content').classList.remove('hidden');
         document.getElementById('admin-choices').classList.add('hidden');
+    });
+
+    document.getElementById('btn-lang-toggle').addEventListener('click', () => {
+        currentLang = currentLang === 'en' ? 'ta' : 'en';
+        localStorage.setItem('attendance_pro_lang', currentLang);
+        updateLanguage();
     });
 
     document.querySelectorAll('.admin-choice-btn').forEach(btn => {
@@ -1135,6 +1190,30 @@ function exportExcel() {
     // Trigger download
     const fileName = `Attendance_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, fileName);
+}
+
+function updateLanguage() {
+    const texts = i18n[currentLang];
+
+    // Update elements with data-i18n
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (texts[key]) {
+            el.innerText = texts[key];
+        }
+    });
+
+    // Update placeholders
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (texts[key]) {
+            el.placeholder = texts[key];
+        }
+    });
+
+    // Update toggle button text
+    const langBtnText = document.getElementById('current-lang-text');
+    if (langBtnText) langBtnText.innerText = texts.lang_text;
 }
 
 // Initialize GPS object to prevent null errors

@@ -61,6 +61,13 @@
         <div class="blob blob-2"></div>
     </div>
 
+    <div class="lang-toggle-container">
+        <button id="btn-lang-toggle" class="btn-lang">
+            <i class="fas fa-language"></i>
+            <span id="current-lang-text">தமிழ்</span>
+        </button>
+    </div>
+
     <main id="app">
         <!-- 1. Login Screen (Desktop Split) -->
         <section id="login-screen" class="fade-in w-full">
@@ -75,26 +82,28 @@
                 <div class="login-form-side">
                     <div class="card">
                         <div class="text-center mb-4">
-                            <h2 class="mb-2">Portal Access</h2>
-                            <p>Verify your credentials to continue</p>
+                            <h2 class="mb-2" data-i18n="login_title">Portal Access</h2>
+                            <p data-i18n="login_subtitle">Verify your credentials to continue</p>
                         </div>
                         <div id="login-form-content">
                             <div class="form-group">
-                                <label>Employee / Admin ID</label>
-                                <input type="text" id="login-id" placeholder="Enter your ID">
+                                <label data-i18n="login_id_label">Employee / Admin ID</label>
+                                <input type="text" id="login-id" placeholder="Enter your ID"
+                                    data-i18n-placeholder="login_id_placeholder">
                             </div>
                             <div class="form-group">
-                                <label>Password</label>
-                                <input type="password" id="login-pass" placeholder="••••••••">
+                                <label data-i18n="login_pass_label">Password</label>
+                                <input type="password" id="login-pass" placeholder="••••••••"
+                                    data-i18n-placeholder="login_pass_placeholder">
                             </div>
                             <button class="btn btn-primary" id="btn-login">
-                                <span>Authenticate</span>
+                                <span data-i18n="btn_login">Authenticate</span>
                                 <i class="fas fa-shield-halved"></i>
                             </button>
                             <button class="btn btn-link mt-4 w-full" id="btn-admin-direct"
                                 style="font-size: 0.75rem; opacity: 0.5;">
                                 <i class="fas fa-user-gear"></i>
-                                <span>Manager Portal Access</span>
+                                <span data-i18n="btn_manager_portal">Manager Portal Access</span>
                             </button>
                         </div>
 
@@ -105,18 +114,18 @@
                             <div class="flex flex-col gap-3">
                                 <button class="btn btn-secondary admin-choice-btn" data-admin="admin1"
                                     style="justify-content: flex-start; padding: 15px; width: 100%;">
-                                    <i class="fas fa-crown text-primary" style="margin-right: 10px;"></i> <span>Admin 1
+                                    <i class="fas fa-crown text-primary" style="margin-right: 10px;"></i> <span>Vasu
                                         (Owner)</span>
                                 </button>
                                 <button class="btn btn-secondary admin-choice-btn" data-admin="admin2"
                                     style="justify-content: flex-start; padding: 15px; width: 100%;">
-                                    <i class="fas fa-user-tie text-primary" style="margin-right: 10px;"></i> <span>Admin
-                                        2 (Manager)</span>
+                                    <i class="fas fa-user-tie text-primary" style="margin-right: 10px;"></i>
+                                    <span>Manager</span>
                                 </button>
                                 <button class="btn btn-secondary admin-choice-btn" data-admin="admin3"
                                     style="justify-content: flex-start; padding: 15px; width: 100%;">
                                     <i class="fas fa-user-shield text-primary" style="margin-right: 10px;"></i>
-                                    <span>Admin 3 (Supervisor)</span>
+                                    <span>Supervisor</span>
                                 </button>
                             </div>
                             <button class="btn btn-link w-full mt-4" id="btn-back-to-login"
@@ -139,7 +148,7 @@
             <section id="emp-main" class="hidden">
                 <header class="flex justify-between items-center mb-6 px-2">
                     <div class="flex-col">
-                        <p style="font-size: 0.8rem;">Shift Overview</p>
+                        <p style="font-size: 0.8rem;" data-i18n="shift_overview">Shift Overview</p>
                         <h2 id="emp-name-display">Alex Rivera</h2>
                     </div>
                     <div class="status-pill status-warning" id="gps-accuracy-pill">
@@ -155,35 +164,40 @@
                         <div class="flex items-center gap-4">
                             <i class="fas fa-bullhorn" style="font-size: 1.5rem;"></i>
                             <div class="flex-col">
-                                <span style="font-size: 0.7rem; text-transform: uppercase; opacity: 0.8;">Message from
+                                <span style="font-size: 0.7rem; text-transform: uppercase; opacity: 0.8;"
+                                    data-i18n="owner_msg_title">Message from
                                     Owner</span>
-                                <p id="display-owner-message" style="font-weight: 600; line-height: 1.2;">Checking in...
+                                <p id="display-owner-message" style="font-weight: 600; line-height: 1.2;"
+                                    data-i18n="checking_in">Checking in...
                                 </p>
                             </div>
                         </div>
                     </div>
                     <div class="card">
                         <div class="flex-col items-center py-6">
-                            <p class="mb-2">Session Timer</p>
+                            <p class="mb-2" data-i18n="session_timer">Session Timer</p>
                             <div id="attendance-status-badge" class="status-pill status-invalid"
                                 style="transform: scale(1.2);">
                                 <i class="fas fa-clock"></i>
-                                <span>Off Duty</span>
+                                <span data-i18n="off_duty">Off Duty</span>
                             </div>
                             <div id="live-timer" class="mt-8"
                                 style="font-size: 3.5rem; font-weight: 800; color: white;">00:00:00</div>
-                            <p id="timer-label" class="hidden text-primary mt-2">Active Work Session</p>
+                            <p id="timer-label" class="hidden text-primary mt-2" data-i18n="active_session">Active Work
+                                Session</p>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3>Compliance Check</h3>
+                        <h3 data-i18n="compliance_check">Compliance Check</h3>
                         <div class="flex justify-between items-center mt-4">
                             <div class="flex items-center gap-3">
                                 <i class="fas fa-map-location-dot text-primary" style="font-size: 1.5rem;"></i>
                                 <div class="flex-col">
-                                    <span id="geofence-status" style="font-weight: 600;">Detecting...</span>
-                                    <span style="font-size: 0.7rem; color: var(--text-dim);">Proximity to <span
+                                    <span id="geofence-status" style="font-weight: 600;"
+                                        data-i18n="detecting">Detecting...</span>
+                                    <span style="font-size: 0.7rem; color: var(--text-dim);"><span
+                                            data-i18n="proximity_to">Proximity to</span> <span
                                             id="display-shop-name">Shop</span></span>
                                 </div>
                             </div>
@@ -193,7 +207,7 @@
                             <a id="btn-open-gmaps" href="#" target="_blank" class="btn btn-secondary w-full"
                                 style="padding: 10px; font-size: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
                                 <i class="fas fa-map-location-dot"></i>
-                                <span>See Shop on Google Maps</span>
+                                <span data-i18n="btn_see_gmaps">See Shop on Google Maps</span>
                             </a>
                         </div>
                     </div>
@@ -201,7 +215,8 @@
                     <button class="btn btn-primary full-width-element" id="btn-toggle-attendance"
                         style="padding: 24px;">
                         <i class="fas fa-camera"></i>
-                        <span id="attendance-btn-text" style="font-size: 1.2rem;">Start Verification</span>
+                        <span id="attendance-btn-text" style="font-size: 1.2rem;"
+                            data-i18n="btn_start_verification">Start Verification</span>
                     </button>
                 </div>
 
