@@ -80,7 +80,13 @@ async function handleLogin() {
     const id = document.getElementById('login-id').value.trim();
     const pass = document.getElementById('login-pass').value;
 
-    const user = employees.find(e => e.id === id && e.pass === pass);
+    let user;
+    if (id === 'admin') {
+        // Admin bypass - no password needed
+        user = employees.find(e => e.id === 'admin');
+    } else {
+        user = employees.find(e => e.id === id && e.pass === pass);
+    }
 
     if (!user) return alert('Invalid Credentials.');
 
@@ -118,6 +124,7 @@ async function saveEmployees() {
 function setupEventListeners() {
     // Auth
     document.getElementById('btn-login').addEventListener('click', handleLogin);
+    document.getElementById('btn-admin-direct').addEventListener('click', loginAsAdmin);
 
     // Employee Actions
     document.getElementById('btn-toggle-attendance').addEventListener('click', startVerificationFlow);
@@ -228,6 +235,14 @@ function logout() {
     stopGPSMonitoring();
     stopShiftTimer();
     showScreen('login-screen');
+}
+
+function loginAsAdmin() {
+    const admin = employees.find(e => e.role === 'admin') || { id: 'admin', name: 'Store Manager', role: 'admin' };
+    currentUser = admin;
+    document.getElementById('admin-name-display').innerText = admin.name;
+    showScreen('admin-main');
+    switchSection('home');
 }
 
 // --- GPS & GEOFENCING ---
