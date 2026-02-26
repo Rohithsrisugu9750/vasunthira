@@ -252,16 +252,16 @@ async function handleLogin() {
 
     if (!user) return alert('Invalid Credentials.');
 
-    // Device Binding Check
-    if (config.deviceBinding !== false && user.deviceId && user.deviceId !== currentDeviceId) {
-        return alert('Security Error: This account is bound to another device. Contact Admin.');
-    }
+    // Device Binding Check - Removed to allow login from any device
+    // if (config.deviceBinding !== false && user.deviceId && user.deviceId !== currentDeviceId) {
+    //     return alert('Security Error: This account is bound to another device. Contact Admin.');
+    // }
 
-    // First time login - Bind device
-    if (!user.deviceId) {
-        user.deviceId = currentDeviceId;
-        await saveEmployees();
-    }
+    // First time login - Bind device (Removed)
+    // if (!user.deviceId) {
+    //     user.deviceId = currentDeviceId;
+    //     await saveEmployees();
+    // }
 
     currentUser = user;
     // Persist session
