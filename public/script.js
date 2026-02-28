@@ -208,6 +208,9 @@ async function syncFromSupabase() {
             config = cfg;
             localStorage.setItem('attendance_pro_config', JSON.stringify(config));
         }
+
+        // Sync recent records
+        await getRecords(true);
     } catch (e) { console.error("Sync Error", e); }
 }
 
@@ -219,15 +222,19 @@ function getTodayStr() {
     return `${y}-${m}-${d}`;
 }
 
-async function getRecords() {
+async function getRecords(forceFetch = false) {
     // Always get local first
     const local = JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
+
+    // If local has data and we don't force fetch, return local cache
+    if (!forceFetch && local.length > 0) return local;
 
     if (!attendanceDb || !navigator.onLine) return local;
 
     try {
-        const { data } = await attendanceDb.from('v_records').select('*').order('timestamp', { ascending: false });
-        if (data) {
+        const { data, error } = await attendanceDb.from('v_records').select('*').order('timestamp', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) {
             localStorage.setItem('attendance_pro_records', JSON.stringify(data));
             return data;
         }
@@ -550,60 +557,81 @@ function updatePosition() {
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
+let isAutoProcessing = false;
+
 async function handleAutoCheckin(distance) {
     if (!currentUser || currentUser.role === 'admin') return;
+    if (isAutoProcessing) return;
 
     const now = new Date();
     const hour = now.getHours();
     if (hour < 8 || hour >= 20) return;
 
-    const records = await getRecords();
-    const today = getTodayStr();
-    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-    const lastRecord = todayLogs[0];
+    isAutoProcessing = true;
+    try {
+        const records = await getRecords();
+        const today = getTodayStr();
+        const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+        const lastRecord = todayLogs[0];
 
-    // Only auto-checkin if they are currently OFF DUTY (either never checked in today, or last record was OUT)
-    if (!lastRecord || lastRecord.type === 'OUT') {
-        console.log(`Auto-Checkin Triggered: Arrived at Shop (${Math.round(distance)}m)`);
-        await autoSubmitAttendance('IN', 'Auto-Checkin (Arrived)');
+        // Only auto-checkin if they are currently OFF DUTY (either never checked in today, or last record was OUT)
+        if (!lastRecord || lastRecord.type === 'OUT') {
+            console.log(`Auto-Checkin Triggered: Arrived at Shop (${Math.round(distance)}m)`);
+            await autoSubmitAttendance('IN', 'Auto-Checkin (Arrived)');
 
-        // Highlight Owner Message as Confirmation
-        const msgEl = document.getElementById('display-owner-message');
-        const banner = document.getElementById('owner-notification-banner');
-        if (msgEl) msgEl.innerText = "Confirmed: Auto Check-In Successful! Owner notified.";
-        if (banner) banner.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            // Highlight Owner Message as Confirmation
+            const msgEl = document.getElementById('display-owner-message');
+            const banner = document.getElementById('owner-notification-banner');
+            if (msgEl) msgEl.innerText = "Confirmed: Auto Check-In Successful! Owner notified.";
+            if (banner) banner.style.background = 'linear-gradient(135deg, #10b981, #059669)';
 
-        alert(`Auto-Checkin Success: You have been clocked in automatically upon arrival at the shop.`);
+            alert(`Auto-Checkin Success: You have been clocked in automatically upon arrival at the shop.`);
+        }
+    } finally {
+        isAutoProcessing = false;
     }
 }
 
 async function handleShiftEndAutoCheckout() {
     if (!currentUser || currentUser.role === 'admin') return;
-    const records = await getRecords();
-    const today = getTodayStr();
-    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-    const lastRecord = todayLogs[0];
+    if (isAutoProcessing) return;
 
-    if (lastRecord && lastRecord.type === 'IN') {
-        console.log("Shift End Auto-Checkout: 8:00 PM reached.");
-        await autoSubmitAttendance('OUT', 'Auto-Checkout (Shift Ended)');
-        alert("Shift Ended: You have been automatically clocked out (8:00 PM).");
+    isAutoProcessing = true;
+    try {
+        const records = await getRecords();
+        const today = getTodayStr();
+        const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+        const lastRecord = todayLogs[0];
+
+        if (lastRecord && lastRecord.type === 'IN') {
+            console.log("Shift End Auto-Checkout: 8:00 PM reached.");
+            await autoSubmitAttendance('OUT', 'Auto-Checkout (Shift Ended)');
+            alert("Shift Ended: You have been automatically clocked out (8:00 PM).");
+        }
+    } finally {
+        isAutoProcessing = false;
     }
 }
 
 async function handleAutoCheckout(distance) {
     if (!currentUser || currentUser.role === 'admin') return;
+    if (isAutoProcessing) return;
 
-    const records = await getRecords();
-    const today = getTodayStr();
-    const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-    const lastRecord = todayLogs[0]; // records is sorted desc
+    isAutoProcessing = true;
+    try {
+        const records = await getRecords();
+        const today = getTodayStr();
+        const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
+        const lastRecord = todayLogs[0]; // records is sorted desc
 
-    // Only auto-checkout if they are currently clocked IN and beyond the 40m buffer
-    if (lastRecord && lastRecord.type === 'IN' && distance > 40) {
-        console.log(`Auto-Checkout Triggered: Distance ${Math.round(distance)}m`);
-        await autoSubmitAttendance('OUT', 'Auto-Checkout (Left Area)');
-        alert(`Auto-Checkout: You have been clocked out because you left the shop premises (${Math.round(distance)}m away).`);
+        // Only auto-checkout if they are currently clocked IN and beyond the 40m buffer
+        if (lastRecord && lastRecord.type === 'IN' && distance > 40) {
+            console.log(`Auto-Checkout Triggered: Distance ${Math.round(distance)}m`);
+            await autoSubmitAttendance('OUT', 'Auto-Checkout (Left Area)');
+            alert(`Auto-Checkout: You have been clocked out because you left the shop premises (${Math.round(distance)}m away).`);
+        }
+    } finally {
+        isAutoProcessing = false;
     }
 }
 
@@ -794,13 +822,17 @@ function startShiftTimer(startTime) {
     if (timerInterval) clearInterval(timerInterval);
     const timerEl = document.getElementById('live-timer');
 
-    timerInterval = setInterval(() => {
+    function updateTimer() {
         const diff = new Date() - startTime;
+        if (diff < 0) return;
         const hrs = Math.floor(diff / 3600000).toString().padStart(2, '0');
         const mins = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
         const secs = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
         timerEl.innerText = `${hrs}:${mins}:${secs}`;
-    }, 1000);
+    }
+
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 1000);
 }
 
 function stopShiftTimer() {
@@ -1193,9 +1225,9 @@ async function resetDevice(id) {
     }
 }
 
-function exportExcel() {
-    const records = getRecords();
-    if (records.length === 0) return alert('No records found to export.');
+async function exportExcel() {
+    const records = await getRecords(true);
+    if (!records || records.length === 0) return alert('No records found to export.');
 
     // Prepare data for Excel
     const data = records.map(r => ({
