@@ -533,21 +533,13 @@ function updatePosition() {
             } else if (dist <= 30) {
                 statusEl.innerText = 'Inside Shop (Secure)';
                 statusEl.className = 'text-success';
-                handleAutoCheckin(dist);
             } else if (dist > 40) {
                 statusEl.innerText = 'Outside (Blocked)';
                 statusEl.className = 'text-error';
-                handleAutoCheckout(dist);
             } else {
                 statusEl.innerText = 'Warning: Boundary';
                 statusEl.className = 'text-warning';
             }
-        }
-
-        // AUTO CHECK OUT LOGIC (Time: 8:00 PM)
-        const now = new Date();
-        if (now.getHours() >= 20) {
-            handleShiftEndAutoCheckout();
         }
 
     }, err => {
@@ -557,119 +549,7 @@ function updatePosition() {
     }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
-let isAutoProcessing = false;
 
-async function handleAutoCheckin(distance) {
-    if (!currentUser || currentUser.role === 'admin') return;
-    if (isAutoProcessing) return;
-
-    const now = new Date();
-    const hour = now.getHours();
-    if (hour < 8 || hour >= 20) return;
-
-    isAutoProcessing = true;
-    try {
-        const records = await getRecords();
-        const today = getTodayStr();
-        const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-        const lastRecord = todayLogs[0];
-
-        // Only auto-checkin if they are currently OFF DUTY (either never checked in today, or last record was OUT)
-        if (!lastRecord || lastRecord.type === 'OUT') {
-            console.log(`Auto-Checkin Triggered: Arrived at Shop (${Math.round(distance)}m)`);
-            await autoSubmitAttendance('IN', 'Auto-Checkin (Arrived)');
-
-            // Highlight Owner Message as Confirmation
-            const msgEl = document.getElementById('display-owner-message');
-            const banner = document.getElementById('owner-notification-banner');
-            if (msgEl) msgEl.innerText = "Confirmed: Auto Check-In Successful! Owner notified.";
-            if (banner) banner.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-
-            alert(`Auto-Checkin Success: You have been clocked in automatically upon arrival at the shop.`);
-        }
-    } finally {
-        isAutoProcessing = false;
-    }
-}
-
-async function handleShiftEndAutoCheckout() {
-    if (!currentUser || currentUser.role === 'admin') return;
-    if (isAutoProcessing) return;
-
-    isAutoProcessing = true;
-    try {
-        const records = await getRecords();
-        const today = getTodayStr();
-        const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-        const lastRecord = todayLogs[0];
-
-        if (lastRecord && lastRecord.type === 'IN') {
-            console.log("Shift End Auto-Checkout: 8:00 PM reached.");
-            await autoSubmitAttendance('OUT', 'Auto-Checkout (Shift Ended)');
-            alert("Shift Ended: You have been automatically clocked out (8:00 PM).");
-        }
-    } finally {
-        isAutoProcessing = false;
-    }
-}
-
-async function handleAutoCheckout(distance) {
-    if (!currentUser || currentUser.role === 'admin') return;
-    if (isAutoProcessing) return;
-
-    isAutoProcessing = true;
-    try {
-        const records = await getRecords();
-        const today = getTodayStr();
-        const todayLogs = records.filter(r => r.empId === currentUser.id && r.date === today);
-        const lastRecord = todayLogs[0]; // records is sorted desc
-
-        // Only auto-checkout if they are currently clocked IN and beyond the 40m buffer
-        if (lastRecord && lastRecord.type === 'IN' && distance > 40) {
-            console.log(`Auto-Checkout Triggered: Distance ${Math.round(distance)}m`);
-            await autoSubmitAttendance('OUT', 'Auto-Checkout (Left Area)');
-            alert(`Auto-Checkout: You have been clocked out because you left the shop premises (${Math.round(distance)}m away).`);
-        }
-    } finally {
-        isAutoProcessing = false;
-    }
-}
-
-async function autoSubmitAttendance(type, status) {
-    const now = new Date();
-    const record = {
-        empId: currentUser.id,
-        empName: currentUser.name,
-        shopName: config.shopName,
-        timestamp: now.toISOString(),
-        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        date: getTodayStr(),
-        coords: userCoords,
-        image: 'https://cdn-icons-png.flaticon.com/512/9131/9131546.png', // Placeholder for auto-log
-        type: type,
-        status: status,
-        deviceId: currentDeviceId
-    };
-
-    // Always save locally first for offline support
-    const localRecords = JSON.parse(localStorage.getItem('attendance_pro_records')) || [];
-    localRecords.unshift(record);
-    localStorage.setItem('attendance_pro_records', JSON.stringify(localRecords));
-
-    if (attendanceDb && navigator.onLine) {
-        await attendanceDb.from('v_records').insert([record]);
-    } else {
-        // Queue for sync
-        const unsynced = JSON.parse(localStorage.getItem('unsynced_records') || '[]');
-        unsynced.push(record);
-        localStorage.setItem('unsynced_records', JSON.stringify(unsynced));
-    }
-
-    updateShiftStatus();
-    if (document.getElementById('section-emp-history').classList.contains('active')) {
-        renderEmployeeHistory();
-    }
-}
 
 // --- ATTENDANCE FLOW ---
 async function startVerificationFlow() {
