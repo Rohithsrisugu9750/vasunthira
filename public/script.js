@@ -107,7 +107,6 @@ async function initApp() {
     setupNav();
     setupEventListeners();
     updateLanguage();
-    renderQuickLogin();
 
     // Session Persistence: Check if user was previously logged in
     const savedUser = localStorage.getItem('attendance_pro_session');
@@ -146,35 +145,12 @@ async function initApp() {
     console.log("Connecting to Supabase...");
     syncFromSupabase().then(() => {
         console.log("Supabase Synced Successfully!");
-        renderQuickLogin(); // Re-render if new employees were synced
         syncUnsyncedRecords();
     }).catch(err => {
         console.error("Database Connection Failed. Working Offline.");
     });
 }
 
-function renderQuickLogin() {
-    const list = document.getElementById('quick-login-list');
-    if (!list) return;
-    list.innerHTML = '';
-
-    // Only show regular employees in Quick Access
-    const emps = employees.filter(e => e.role === 'employee');
-
-    emps.forEach(emp => {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-secondary';
-        btn.style.padding = '8px 15px';
-        btn.style.fontSize = '0.8rem';
-        btn.innerHTML = `<i class="fas fa-user"></i> ${emp.name}`;
-        btn.onclick = () => {
-            document.getElementById('login-id').value = emp.id;
-            document.getElementById('login-pass').value = emp.pass; // Auto-fill password for "No Restriction"
-            handleLogin();
-        };
-        list.appendChild(btn);
-    });
-}
 
 // --- OFFLINE SYNC LOGIC ---
 async function syncUnsyncedRecords() {
@@ -295,7 +271,6 @@ function updateOwnerMessageUI() {
 
 async function saveEmployees() {
     localStorage.setItem('attendance_pro_employees', JSON.stringify(employees));
-    renderQuickLogin(); // Update Quick Access list
     if (attendanceDb) {
         await attendanceDb.from('v_employees').upsert(employees);
     }
